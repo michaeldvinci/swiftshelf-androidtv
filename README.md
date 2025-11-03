@@ -7,50 +7,45 @@
 A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/), offering a sleek, remote-friendly interface for browsing and playing your audiobooks.
 
 ![Screenshot: Login](screenshots/login.png)
-*Secure login with host URL and API key*
 
 ## Features
 
-### 🔐 Authenticated Connection & Secure Storage
+### Authenticated Connection & Secure Storage
 - Logs in with Audiobookshelf host and API key
 - Credentials securely stored using Android's EncryptedSharedPreferences
 - Seamless reconnection after app relaunch
 
 ![Screenshot: Library Selection](screenshots/library-selection.png)
-*Choose from your available Audiobookshelf libraries*
 
-### 📚 Library Selection & Persistence
+### Library Selection & Persistence
 - Choose from available Audiobookshelf libraries
 - Select multiple libraries to browse at once
 - Remembers your selected libraries
 
-### 🎬 Recent & Continue Listening Carousels
+### Recent & Continue Listening Carousels
 - Browse recently added audiobooks
 - Pick up where you left off with in-progress items
 - Cover artwork with author, duration, and playback progress
 - Smooth horizontal scrolling carousels
 
 ![Screenshot: Library Browse](screenshots/library-browse.png)
-*Recent and continue listening carousels with cover artwork*
 
-### 🔍 Search
+### Search
 - Query your library with natural search
 - Results display books with cover art and metadata
 - Quick access to search functionality
 
 ![Screenshot: Search](screenshots/search.png)
-*Search your library for books, authors, or series*
 
-### 📖 Detailed Item Popup & Quick Play
+### Detailed Item Popup & Quick Play
 - Material Design sheet with book details
 - Author, narrator, series information
 - Duration and progress tracking
 - Prominent play button to start playback
 
 ![Screenshot: Book Details](screenshots/book-details.png)
-*Detailed book information with quick play*
 
-### 🎵 Compact Mini Player
+### Compact Mini Player
 - Bottom player banner with playback controls
 - Cover artwork and elapsed time display
 - Playback speed adjustments (0.5x - 3.0x)
@@ -58,23 +53,21 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 - Thin progress bar across the screen bottom
 
 ![Screenshot: Mini Player](screenshots/mini-player.png)
-*Compact player stays visible while browsing*
 
-### ⚙️ Customizable Experience
+### Customizable Experience
 - Adjust library item fetch count (default: 10)
 - Choose carousel progress-bar color
 - Set default playback speed
 - Persistent settings across sessions
 
 ![Screenshot: Settings](screenshots/settings.png)
-*Customize your SwiftShelf experience*
 
-### 🖼️ Authenticated Cover Fetching
+### Authenticated Cover Fetching
 - Securely fetch cover images with authentication
 - Cached for smooth browsing performance
 - High-quality artwork display
 
-### 📱 Android TV Optimized
+### Android TV Optimized
 - Remote-friendly navigation
 - D-pad and touch support
 - Focus-aware UI elements
