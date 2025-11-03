@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SwiftShelf" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <!-- Transparent system bars for immersive TV experience -->
+    </style>
+</resources>
