@@ -141,6 +141,11 @@ fun MainAppContent(
         }
     }
 
+    // Handle back button to close drawer
+    androidx.activity.compose.BackHandler(enabled = drawerState.isOpen) {
+        closeDrawer()
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -305,20 +310,22 @@ fun DrawerContent(
     val selectedLibraries = libraries.filter { selectedLibraryIds.contains(it.id) }
 
     ModalDrawerSheet(
-        modifier = Modifier.width(320.dp)
+        modifier = Modifier
+            .width(320.dp)
+            .onPreviewKeyEvent { event ->
+                // Handle right D-pad press to close drawer
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                    onNavigateRight()
+                    true
+                } else {
+                    false
+                }
+            }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-                        onNavigateRight()
-                        true
-                    } else {
-                        false
-                    }
-                }
         ) {
             // Header with search icon and user initials
             Row(
