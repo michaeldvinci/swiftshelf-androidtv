@@ -1,6 +1,7 @@
 package com.swiftshelf.ui.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
