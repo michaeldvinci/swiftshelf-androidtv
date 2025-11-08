@@ -23,6 +23,14 @@ class GlobalAudioManager(
     private var player: ExoPlayer? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressSyncJob: Job? = null
+    private var sessionSyncJob: Job? = null
+
+    // Session management (canonical ABS flow)
+    private var currentSessionId: String? = null
+    private var lastSessionSyncTime = 0L
+    private var lastProgressSyncTime = 0L
+    private val SESSION_SYNC_INTERVAL_MS = 20000L // 20 seconds
+    private val PROGRESS_SYNC_INTERVAL_MS = 90000L // 90 seconds
 
     // State flows
     private val _currentItem = MutableStateFlow<LibraryItem?>(null)
@@ -52,9 +60,6 @@ class GlobalAudioManager(
     private val _loadingStatus = MutableStateFlow<LoadingStatus>(LoadingStatus.Idle)
     val loadingStatus: StateFlow<LoadingStatus> = _loadingStatus.asStateFlow()
 
-    private var lastSyncTime = 0L
-    private val SYNC_INTERVAL_MS = 5000L // 5 seconds
-
     init {
         initializePlayer()
     }
@@ -78,11 +83,25 @@ class GlobalAudioManager(
                 }
 
                 override fun onIsPlayingChanged(isPlayingNow: Boolean) {
+                    val wasPlaying = _isPlaying.value
                     _isPlaying.value = isPlayingNow
-                    if (isPlayingNow) {
+
+                    if (isPlayingNow && !wasPlaying) {
+                        // Reset sync times to prevent inflated delta on resume
+                        lastSessionSyncTime = System.currentTimeMillis()
+                        lastProgressSyncTime = System.currentTimeMillis()
                         startProgressTracking()
-                    } else {
+
+                        // Start session if needed
+                        if (currentSessionId == null) {
+                            startPlaybackSession()
+                        }
+                    } else if (!isPlayingNow && wasPlaying) {
                         stopProgressTracking()
+                        // Close session on pause
+                        scope.launch {
+                            closeCurrentSession()
+                        }
                     }
                 }
 
@@ -234,20 +253,32 @@ class GlobalAudioManager(
 
     private fun startProgressTracking() {
         progressSyncJob?.cancel()
+        sessionSyncJob?.cancel()
+
+        // Main loop: Update UI state
         progressSyncJob = scope.launch {
             while (isActive) {
                 player?.let {
                     _currentTime.value = it.currentPosition
                     _duration.value = it.duration
-
-                    // Sync progress to server every 5 seconds
-                    val now = System.currentTimeMillis()
-                    if (now - lastSyncTime > SYNC_INTERVAL_MS) {
-                        syncProgressNow()
-                        lastSyncTime = now
-                    }
                 }
                 delay(100)
+            }
+        }
+
+        // Session sync timer: 20 seconds
+        sessionSyncJob = scope.launch {
+            while (isActive) {
+                delay(SESSION_SYNC_INTERVAL_MS)
+                syncSessionNow()
+            }
+        }
+
+        // Progress sync timer: 90 seconds
+        scope.launch {
+            while (isActive) {
+                delay(PROGRESS_SYNC_INTERVAL_MS)
+                syncProgressNow()
             }
         }
     }
@@ -255,12 +286,26 @@ class GlobalAudioManager(
     private fun stopProgressTracking() {
         progressSyncJob?.cancel()
         progressSyncJob = null
+        sessionSyncJob?.cancel()
+        sessionSyncJob = null
     }
 
     private fun syncProgressNow() {
         val item = _currentItem.value ?: return
         val currentTimeSeconds = (_currentTime.value / 1000.0)
-        val durationSeconds = (_duration.value / 1000.0)
+        var durationSeconds = (_duration.value / 1000.0)
+
+        // Duration fallback: use item duration if player duration is invalid
+        if (durationSeconds <= 0.0) {
+            durationSeconds = item.media?.duration ?: 0.0
+        }
+
+        if (durationSeconds <= 0.0) {
+            android.util.Log.w("GlobalAudioManager", "Cannot sync progress: duration is 0")
+            return
+        }
+
+        lastProgressSyncTime = System.currentTimeMillis()
 
         scope.launch {
             repository.updateProgress(
@@ -290,7 +335,104 @@ class GlobalAudioManager(
         }
     }
 
+    // Session Management (Canonical ABS API)
+    private fun startPlaybackSession() {
+        val item = _currentItem.value ?: return
+
+        android.util.Log.d("GlobalAudioManager", "🚀 Starting playback session for: ${item.media?.metadata?.title}")
+
+        scope.launch {
+            val deviceId = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                android.provider.Settings.Secure.ANDROID_ID
+            )
+
+            val result = repository.startPlaybackSession(
+                itemId = item.id,
+                deviceId = deviceId,
+                model = android.os.Build.MODEL,
+                deviceName = android.os.Build.DEVICE
+            )
+
+            result.onSuccess { response ->
+                currentSessionId = response.id
+                lastSessionSyncTime = System.currentTimeMillis()
+                android.util.Log.d("GlobalAudioManager", "✅ Session started: ${response.id}")
+            }.onFailure { error ->
+                android.util.Log.e("GlobalAudioManager", "❌ Failed to start session: ${error.message}")
+            }
+        }
+    }
+
+    private fun syncSessionNow() {
+        val sessionId = currentSessionId ?: return
+        val item = _currentItem.value ?: return
+
+        val currentTimeSeconds = (_currentTime.value / 1000.0)
+        var durationSeconds = (_duration.value / 1000.0)
+
+        // Duration fallback
+        if (durationSeconds <= 0.0) {
+            durationSeconds = item.media?.duration ?: 0.0
+        }
+
+        if (durationSeconds <= 0.0) {
+            android.util.Log.w("GlobalAudioManager", "Cannot sync session: duration is 0")
+            return
+        }
+
+        // Calculate delta time listened since last sync
+        val now = System.currentTimeMillis()
+        val deltaSeconds = ((now - lastSessionSyncTime) / 1000.0).coerceAtLeast(0.0)
+        lastSessionSyncTime = now
+
+        scope.launch {
+            repository.syncSession(
+                sessionId = sessionId,
+                currentTime = currentTimeSeconds,
+                timeListened = deltaSeconds,
+                duration = durationSeconds
+            ).onFailure { error ->
+                android.util.Log.e("GlobalAudioManager", "❌ Session sync failed: ${error.message}")
+            }
+        }
+    }
+
+    private suspend fun closeCurrentSession() {
+        val sessionId = currentSessionId ?: return
+        val item = _currentItem.value ?: return
+
+        android.util.Log.d("GlobalAudioManager", "🛑 Closing session: $sessionId")
+
+        val currentTimeSeconds = (_currentTime.value / 1000.0)
+        var durationSeconds = (_duration.value / 1000.0)
+
+        if (durationSeconds <= 0.0) {
+            durationSeconds = item.media?.duration ?: 0.0
+        }
+
+        // Calculate final delta
+        val now = System.currentTimeMillis()
+        val deltaSeconds = ((now - lastSessionSyncTime) / 1000.0).coerceAtLeast(0.0)
+
+        repository.closeSession(
+            sessionId = sessionId,
+            currentTime = if (durationSeconds > 0) currentTimeSeconds else null,
+            timeListened = if (durationSeconds > 0) deltaSeconds else null,
+            duration = if (durationSeconds > 0) durationSeconds else null
+        ).onSuccess {
+            android.util.Log.d("GlobalAudioManager", "✅ Session closed")
+            currentSessionId = null
+        }.onFailure { error ->
+            android.util.Log.e("GlobalAudioManager", "❌ Failed to close session: ${error.message}")
+            currentSessionId = null
+        }
+    }
+
     fun release() {
+        scope.launch {
+            closeCurrentSession()
+        }
         syncProgressNow()
         stopProgressTracking()
         player?.release()

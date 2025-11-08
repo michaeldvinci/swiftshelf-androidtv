@@ -43,4 +43,23 @@ interface AudiobookshelfApi {
     suspend fun getProgress(
         @Path("id") itemId: String
     ): Response<UserMediaProgress>
+
+    // Playback Session Endpoints (Canonical ABS API)
+    @POST("api/items/{id}/play")
+    suspend fun startPlaybackSession(
+        @Path("id") itemId: String,
+        @Body request: SessionStartRequest
+    ): Response<PlaybackSessionResponse>
+
+    @POST("api/session/{sessionId}/sync")
+    suspend fun syncSession(
+        @Path("sessionId") sessionId: String,
+        @Body request: SessionSyncRequest
+    ): Response<Unit>
+
+    @POST("api/session/{sessionId}/close")
+    suspend fun closeSession(
+        @Path("sessionId") sessionId: String,
+        @Body request: SessionSyncRequest?
+    ): Response<Unit>
 }

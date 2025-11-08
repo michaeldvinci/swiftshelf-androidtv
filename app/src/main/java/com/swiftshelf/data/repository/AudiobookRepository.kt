@@ -139,4 +139,80 @@ class AudiobookRepository {
             Result.failure(e)
         }
     }
+
+    // Playback Session Methods (Canonical ABS API)
+    suspend fun startPlaybackSession(
+        itemId: String,
+        deviceId: String,
+        model: String,
+        deviceName: String
+    ): Result<PlaybackSessionResponse> = withContext(Dispatchers.IO) {
+        try {
+            val request = SessionStartRequest(
+                deviceInfo = DeviceInfo(
+                    deviceId = deviceId,
+                    model = model,
+                    deviceName = deviceName
+                ),
+                supportedMimeTypes = listOf("audio/mpeg", "audio/mp4", "audio/flac", "audio/x-m4a", "audio/aac")
+            )
+            val response = api.startPlaybackSession(itemId, request)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Failed to start session: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun syncSession(
+        sessionId: String,
+        currentTime: Double,
+        timeListened: Double,
+        duration: Double
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val request = SessionSyncRequest(
+                currentTime = currentTime,
+                timeListened = timeListened,
+                duration = duration
+            )
+            val response = api.syncSession(sessionId, request)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to sync session: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun closeSession(
+        sessionId: String,
+        currentTime: Double? = null,
+        timeListened: Double? = null,
+        duration: Double? = null
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val request = if (currentTime != null && duration != null) {
+                SessionSyncRequest(
+                    currentTime = currentTime,
+                    timeListened = timeListened ?: 0.0,
+                    duration = duration
+                )
+            } else null
+
+            val response = api.closeSession(sessionId, request)
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to close session: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
