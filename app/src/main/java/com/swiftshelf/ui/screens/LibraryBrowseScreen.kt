@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.swiftshelf.data.model.LibraryItem
 import com.swiftshelf.data.model.progressFraction
+import kotlinx.coroutines.delay
 
 @Composable
 fun LibraryBrowseScreen(
