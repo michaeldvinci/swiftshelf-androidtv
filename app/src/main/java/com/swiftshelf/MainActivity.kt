@@ -189,20 +189,6 @@ fun MainAppContent(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                when (currentTab) {
-                                    0 -> "Search"
-                                    1 -> currentLibrary?.name ?: "Library"
-                                    3 -> "Settings"
-                                    else -> "SwiftShelf"
-                                }
-                            )
-                        }
-                    )
-                },
                 bottomBar = {
                     Column {
                         if (currentItem != null && duration > 0) {
