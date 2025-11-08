@@ -36,6 +36,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.swiftshelf.data.model.LibraryItem
 import com.swiftshelf.data.model.progressFraction
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryBrowseScreen(
