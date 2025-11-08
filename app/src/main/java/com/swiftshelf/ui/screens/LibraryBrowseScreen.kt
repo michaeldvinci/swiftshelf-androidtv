@@ -11,6 +11,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -90,9 +91,12 @@ fun LibraryBrowseScreen(
             )
 
             val focusGoesToRecent = recentItems.isNotEmpty()
+            val recentListState = rememberLazyListState()
+            val coroutineScope = rememberCoroutineScope()
 
             LazyRow(
-                contentPadding = PaddingValues(start = 48.dp, end = 80.dp),
+                state = recentListState,
+                contentPadding = PaddingValues(horizontal = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(bottom = 32.dp)
             ) {
@@ -106,7 +110,18 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) {
+                                coroutineScope.launch {
+                                    // Scroll to show focused item with proper padding
+                                    recentListState.animateScrollToItem(
+                                        index = index,
+                                        scrollOffset = -48 // Account for start padding
+                                    )
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -122,9 +137,12 @@ fun LibraryBrowseScreen(
             )
 
             val focusGoesToContinue = recentItems.isEmpty() && continueListeningItems.isNotEmpty()
+            val continueListState = rememberLazyListState()
+            val coroutineScope = rememberCoroutineScope()
 
             LazyRow(
-                contentPadding = PaddingValues(start = 48.dp, end = 80.dp),
+                state = continueListState,
+                contentPadding = PaddingValues(horizontal = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 itemsIndexed(continueListeningItems, key = { _, item -> item.id }) { index, item ->
@@ -137,7 +155,17 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) {
+                                coroutineScope.launch {
+                                    continueListState.animateScrollToItem(
+                                        index = index,
+                                        scrollOffset = -48
+                                    )
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -170,6 +198,7 @@ fun LibraryItemCard(
     isFirst: Boolean = false,
     onNavigateLeft: (() -> Unit)? = null,
     focusRequester: FocusRequester? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -182,7 +211,10 @@ fun LibraryItemCard(
             .width(coverWidth)
             .scale(scale)
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+                onFocusChanged?.invoke(focusState.isFocused)
+            }
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (
