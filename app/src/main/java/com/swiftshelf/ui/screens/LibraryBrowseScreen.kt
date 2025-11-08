@@ -72,16 +72,56 @@ fun LibraryBrowseScreen(
         type.contains("ebook", ignoreCase = true)
     } == true
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(vertical = 32.dp)
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
+    // Track focused item for background and info panel
+    var focusedItem by remember { mutableStateOf<LibraryItem?>(null) }
 
-        // Recent Items Carousel
-        if (recentItems.isNotEmpty()) {
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
+        // Background image (16:9 aspect ratio)
+        focusedItem?.let { item ->
+            val coverUrl = item.media?.coverPath?.let {
+                "$hostUrl/api/items/${item.id}/cover?token=$apiToken"
+            }
+
+            Image(
+                painter = rememberAsyncImagePainter(coverUrl),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .align(Alignment.TopCenter),
+                contentScale = ContentScale.Crop,
+                alpha = 0.3f
+            )
+
+            // Gradient overlay for readability
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .align(Alignment.TopCenter)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
+                    )
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 32.dp)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Recent Items Carousel
+            if (recentItems.isNotEmpty()) {
             Text(
                 text = "Recent Items",
                 style = MaterialTheme.typography.titleLarge,
@@ -108,7 +148,10 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) focusedItem = item
+                        }
                     )
                 }
             }
@@ -140,11 +183,60 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) focusedItem = item
+                        }
                     )
                 }
             }
         }
+
+            // Info panel for focused item
+            focusedItem?.let { item ->
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp)
+                ) {
+                    // Title
+                    Text(
+                        text = item.media?.metadata?.title ?: "Unknown Title",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Author
+                    item.media?.metadata?.authorName?.let { author ->
+                        Text(
+                            text = "by $author",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Description (expandable)
+                    item.media?.metadata?.description?.let { description ->
+                        var expanded by remember { mutableStateOf(false) }
+
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                            maxLines = if (expanded) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable { expanded = !expanded }
+                        )
+                    }
+                }
+            }
 
         // Empty state
         if (recentItems.isEmpty() && continueListeningItems.isEmpty()) {
@@ -158,6 +250,7 @@ fun LibraryBrowseScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
         }
     }
 }
@@ -173,10 +266,12 @@ fun LibraryItemCard(
     isFirst: Boolean = false,
     onNavigateLeft: (() -> Unit)? = null,
     focusRequester: FocusRequester? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isFocused) 1.08f else 1.0f)
+    // Scale to 1.1x for immersive list design
+    val scale by animateFloatAsState(if (isFocused) 1.1f else 1.0f)
     val coverWidth = 160.dp
     val coverAspectRatio = if (isEbook) 2f / 3f else 1f
 
@@ -187,6 +282,7 @@ fun LibraryItemCard(
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .onFocusChanged { focusState ->
                 isFocused = focusState.isFocused
+                onFocusChanged?.invoke(focusState.isFocused)
             }
             .focusable()
             .onPreviewKeyEvent { event ->
