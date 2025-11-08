@@ -213,7 +213,7 @@ fun LibraryBrowseScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // Author
-                    item.media?.metadata?.authorName?.let { author ->
+                    item.media?.metadata?.authors?.firstOrNull()?.name?.let { author ->
                         Text(
                             text = "by $author",
                             style = MaterialTheme.typography.titleMedium,
