@@ -146,6 +146,21 @@ fun MainAppContent(
         closeDrawer()
     }
 
+    // Auto-focus first carousel item when library tab loads
+    val recentItems by viewModel.recentItems.collectAsState()
+    val continueListeningItems by viewModel.continueListeningItems.collectAsState()
+
+    LaunchedEffect(currentTab, recentItems, continueListeningItems) {
+        // Only auto-focus on library tab (1) and when drawer is closed
+        if (currentTab == 1 && !drawerState.isOpen) {
+            val hasItems = recentItems.isNotEmpty() || continueListeningItems.isNotEmpty()
+            if (hasItems) {
+                kotlinx.coroutines.delay(100) // Small delay to ensure UI is rendered
+                firstCarouselFocusRequester.requestFocus()
+            }
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -245,8 +260,6 @@ fun MainAppContent(
                         }
 
                         1 -> {
-                            val recentItems by viewModel.recentItems.collectAsState()
-                            val continueListeningItems by viewModel.continueListeningItems.collectAsState()
                             val progressBarColor by viewModel.progressBarColor.collectAsState()
 
                             LibraryBrowseScreen(
