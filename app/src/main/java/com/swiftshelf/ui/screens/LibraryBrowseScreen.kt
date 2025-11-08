@@ -73,62 +73,112 @@ fun LibraryBrowseScreen(
     } == true
 
     // Track focused item for background and info panel
-    var focusedItem by remember { mutableStateOf<LibraryItem?>(null) }
+    var focusedItem by remember { mutableStateOf<LibraryItem?>(recentItems.firstOrNull() ?: continueListeningItems.firstOrNull()) }
 
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-        // Background image (16:9 aspect ratio)
+        // Full-screen background image
         focusedItem?.let { item ->
-            val coverUrl = item.media?.coverPath?.let {
-                "$hostUrl/api/items/${item.id}/cover?token=$apiToken"
-            }
+            val coverUrl = "$hostUrl/api/items/${item.id}/cover?token=$apiToken"
 
             Image(
                 painter = rememberAsyncImagePainter(coverUrl),
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .align(Alignment.TopCenter),
+                modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alpha = 0.3f
+                alpha = 0.4f
             )
 
-            // Gradient overlay for readability
+            // Scrim gradient overlay
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f)
-                    .align(Alignment.TopCenter)
+                    .fillMaxSize()
                     .background(
                         androidx.compose.ui.graphics.Brush.verticalGradient(
                             colors = listOf(
-                                Color.Transparent,
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
-                                MaterialTheme.colorScheme.background
+                                Color.Black.copy(alpha = 0.3f),
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.95f)
                             )
                         )
                     )
             )
         }
 
+        // Content block on left side
+        focusedItem?.let { item ->
+            val author = item.media?.metadata?.authors?.firstOrNull()?.name ?: "Unknown Author"
+            val year = item.media?.metadata?.publishedYear ?: ""
+            val durationHours = item.media?.duration?.let { (it / 3600).toInt() } ?: 0
+            val durationMins = item.media?.duration?.let { ((it % 3600) / 60).toInt() } ?: 0
+            val durationText = if (durationHours > 0) "${durationHours}h ${durationMins}m" else "${durationMins}m"
+
+            androidx.compose.animation.AnimatedContent(
+                targetState = item,
+                transitionSpec = {
+                    androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(500)
+                    ) togetherWith androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(500)
+                    )
+                },
+                label = "content_animation",
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 60.dp, end = 30.dp, bottom = 30.dp)
+                    .fillMaxWidth(0.5f)
+            ) { animatedItem ->
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    // Metadata line
+                    Text(
+                        text = buildString {
+                            append(author)
+                            if (year.isNotEmpty()) append(" • $year")
+                            append(" • $durationText")
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Title
+                    Text(
+                        text = animatedItem.media?.metadata?.title ?: "Unknown Title",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Description
+                    animatedItem.media?.metadata?.description?.let { desc ->
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.8f),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // Carousel at bottom-right
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(vertical = 32.dp)
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth()
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
             // Recent Items Carousel
             if (recentItems.isNotEmpty()) {
-            Text(
-                text = "Recent Items",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 48.dp, vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
             val focusGoesToRecent = recentItems.isNotEmpty()
 
             LazyRow(
@@ -191,52 +241,7 @@ fun LibraryBrowseScreen(
                 }
             }
         }
-
-            // Info panel for focused item
-            focusedItem?.let { item ->
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 48.dp)
-                ) {
-                    // Title
-                    Text(
-                        text = item.media?.metadata?.title ?: "Unknown Title",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Author
-                    item.media?.metadata?.authors?.firstOrNull()?.name?.let { author ->
-                        Text(
-                            text = "by $author",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-                    // Description (expandable)
-                    item.media?.metadata?.description?.let { description ->
-                        var expanded by remember { mutableStateOf(false) }
-
-                        Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
-                            maxLines = if (expanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.clickable { expanded = !expanded }
-                        )
-                    }
-                }
-            }
+        }
 
         // Empty state
         if (recentItems.isEmpty() && continueListeningItems.isEmpty()) {
@@ -247,10 +252,9 @@ fun LibraryBrowseScreen(
                 Text(
                     text = "No items found in this library",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.White.copy(alpha = 0.7f)
                 )
             }
-        }
         }
     }
 }
