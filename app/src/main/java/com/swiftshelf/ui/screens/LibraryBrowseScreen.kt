@@ -11,7 +11,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -35,8 +34,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.swiftshelf.data.model.LibraryItem
 import com.swiftshelf.data.model.progressFraction
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryBrowseScreen(
@@ -92,14 +89,13 @@ fun LibraryBrowseScreen(
             )
 
             val focusGoesToRecent = recentItems.isNotEmpty()
-            val recentListState = rememberLazyListState()
-            val coroutineScope = rememberCoroutineScope()
 
             LazyRow(
-                state = recentListState,
                 contentPadding = PaddingValues(horizontal = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier
+                    .padding(bottom = 32.dp)
+                    .fillMaxWidth()
             ) {
                 itemsIndexed(recentItems, key = { _, item -> item.id }) { index, item ->
                     LibraryItemCard(
@@ -111,20 +107,7 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null,
-                        onFocusChanged = { focused ->
-                            if (focused) {
-                                coroutineScope.launch {
-                                    // For first item, scroll to 0 with no offset to preserve padding
-                                    // For other items, scroll to keep item visible
-                                    if (index == 0) {
-                                        recentListState.animateScrollToItem(index = 0, scrollOffset = 0)
-                                    } else {
-                                        recentListState.animateScrollToItem(index = index)
-                                    }
-                                }
-                            }
-                        }
+                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null
                     )
                 }
             }
@@ -140,13 +123,11 @@ fun LibraryBrowseScreen(
             )
 
             val focusGoesToContinue = recentItems.isEmpty() && continueListeningItems.isNotEmpty()
-            val continueListState = rememberLazyListState()
-            val coroutineScope = rememberCoroutineScope()
 
             LazyRow(
-                state = continueListState,
                 contentPadding = PaddingValues(horizontal = 48.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 itemsIndexed(continueListeningItems, key = { _, item -> item.id }) { index, item ->
                     LibraryItemCard(
@@ -158,20 +139,7 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null,
-                        onFocusChanged = { focused ->
-                            if (focused) {
-                                coroutineScope.launch {
-                                    // For first item, scroll to 0 with no offset to preserve padding
-                                    // For other items, scroll to keep item visible
-                                    if (index == 0) {
-                                        continueListState.animateScrollToItem(index = 0, scrollOffset = 0)
-                                    } else {
-                                        continueListState.animateScrollToItem(index = index)
-                                    }
-                                }
-                            }
-                        }
+                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null
                     )
                 }
             }
@@ -204,7 +172,6 @@ fun LibraryItemCard(
     isFirst: Boolean = false,
     onNavigateLeft: (() -> Unit)? = null,
     focusRequester: FocusRequester? = null,
-    onFocusChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -219,7 +186,6 @@ fun LibraryItemCard(
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .onFocusChanged { focusState ->
                 isFocused = focusState.isFocused
-                onFocusChanged?.invoke(focusState.isFocused)
             }
             .focusable()
             .onPreviewKeyEvent { event ->
