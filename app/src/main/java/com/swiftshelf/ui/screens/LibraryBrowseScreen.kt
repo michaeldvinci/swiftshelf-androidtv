@@ -115,11 +115,13 @@ fun LibraryBrowseScreen(
                         onFocusChanged = { focused ->
                             if (focused) {
                                 coroutineScope.launch {
-                                    // Scroll to show focused item with proper padding
-                                    recentListState.animateScrollToItem(
-                                        index = index,
-                                        scrollOffset = -48 // Account for start padding
-                                    )
+                                    // For first item, scroll to 0 with no offset to preserve padding
+                                    // For other items, scroll to keep item visible
+                                    if (index == 0) {
+                                        recentListState.animateScrollToItem(index = 0, scrollOffset = 0)
+                                    } else {
+                                        recentListState.animateScrollToItem(index = index)
+                                    }
                                 }
                             }
                         }
@@ -160,10 +162,13 @@ fun LibraryBrowseScreen(
                         onFocusChanged = { focused ->
                             if (focused) {
                                 coroutineScope.launch {
-                                    continueListState.animateScrollToItem(
-                                        index = index,
-                                        scrollOffset = -48
-                                    )
+                                    // For first item, scroll to 0 with no offset to preserve padding
+                                    // For other items, scroll to keep item visible
+                                    if (index == 0) {
+                                        continueListState.animateScrollToItem(index = 0, scrollOffset = 0)
+                                    } else {
+                                        continueListState.animateScrollToItem(index = index)
+                                    }
                                 }
                             }
                         }
