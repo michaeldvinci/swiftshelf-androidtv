@@ -63,31 +63,31 @@ fun BookDetailsDialog(
                 alpha = 0.3f
             )
 
-            // Content card
+            // Content card - sized to ~80% of screen
             Card(
                 modifier = Modifier
-                    .width(1100.dp)
-                    .heightIn(max = 750.dp),
+                    .fillMaxWidth(0.75f)
+                    .fillMaxHeight(0.8f),
                 shape = RoundedCornerShape(24.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 16.dp)
             ) {
                 Row(
                     modifier = Modifier
-                        .padding(48.dp)
-                        .fillMaxWidth()
+                        .padding(36.dp)
+                        .fillMaxSize()
                 ) {
-                    // Cover art
+                    // Cover art - use square aspect ratio for audiobooks, fit content
                     Image(
                         painter = rememberAsyncImagePainter(coverUrl),
                         contentDescription = item.media?.metadata?.title,
                         modifier = Modifier
-                            .width(380.dp)
-                            .aspectRatio(0.7f)
-                            .clip(RoundedCornerShape(16.dp)),
-                        contentScale = ContentScale.Crop
+                            .size(220.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Fit
                     )
 
-                    Spacer(modifier = Modifier.width(48.dp))
+                    Spacer(modifier = Modifier.width(32.dp))
 
                     // Details column
                     Column(

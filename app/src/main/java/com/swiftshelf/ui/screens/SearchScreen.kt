@@ -60,12 +60,12 @@ fun SearchScreen(
                         )
                     }
 
-                    items(results.book) { book ->
-                        BookSearchResult(
-                            item = book,
+                    items(results.book) { bookResult ->
+                        BookSearchResultCard(
+                            item = bookResult.libraryItem,
                             hostUrl = hostUrl,
                             apiToken = apiToken,
-                            onClick = { onItemClick(book) }
+                            onClick = { onItemClick(bookResult.libraryItem) }
                         )
                     }
                 }
@@ -113,14 +113,14 @@ fun SearchScreen(
                         )
                     }
 
-                    items(results.series) { series ->
+                    items(results.series) { seriesResult ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                         ) {
                             Text(
-                                text = series.name ?: "Unknown",
+                                text = seriesResult.series.name ?: "Unknown",
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.padding(16.dp)
                             )
@@ -134,7 +134,7 @@ fun SearchScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BookSearchResult(
+private fun BookSearchResultCard(
     item: LibraryItem,
     hostUrl: String,
     apiToken: String,
