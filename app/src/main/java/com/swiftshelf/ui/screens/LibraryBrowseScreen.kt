@@ -177,6 +177,7 @@ fun LibraryBrowseScreen(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .fillMaxWidth()
+                .padding(bottom = 32.dp)
         ) {
             // Recent Items Carousel
             if (recentItems.isNotEmpty()) {
@@ -185,9 +186,7 @@ fun LibraryBrowseScreen(
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier
-                    .padding(bottom = 32.dp)
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 itemsIndexed(recentItems, key = { _, item -> item.id }) { index, item ->
                     LibraryItemCard(
@@ -353,68 +352,7 @@ fun LibraryItemCard(
                 }
             }
         }
-
-        // Title - scrolling when focused
-        val scrollState = rememberScrollState()
-        val title = item.media?.metadata?.title ?: "Unknown"
-
-        LaunchedEffect(isFocused) {
-            if (isFocused) {
-                delay(2000) // Wait 2 seconds before starting scroll
-                while (isFocused) {
-                    val maxScroll = scrollState.maxValue
-                    if (maxScroll > 0) {
-                        scrollState.animateScrollTo(
-                            value = maxScroll,
-                            animationSpec = tween(durationMillis = (maxScroll * 50), easing = LinearEasing)
-                        )
-                        delay(1000)
-                        scrollState.scrollTo(0)
-                        delay(2000)
-                    } else {
-                        break
-                    }
-                }
-            } else {
-                scrollState.scrollTo(0)
-            }
-        }
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .width(coverWidth)
-                .horizontalScroll(scrollState, enabled = false),
-            color = MaterialTheme.colorScheme.onBackground,
-            softWrap = false
-        )
-
-        // Author
-        item.media?.metadata?.authors?.firstOrNull()?.name?.let { author ->
-            Text(
-                text = author,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(coverWidth),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        // Duration
-        item.media?.duration?.let { duration ->
-            val hours = (duration / 3600).toInt()
-            val minutes = ((duration % 3600) / 60).toInt()
-            Text(
-                text = "${hours}h ${minutes}m",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // Removed title/author/duration text - info is now in the content block on left
     }
 }
 

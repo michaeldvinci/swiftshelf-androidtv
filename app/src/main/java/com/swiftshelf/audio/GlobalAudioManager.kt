@@ -29,8 +29,13 @@ class GlobalAudioManager(
     private var currentSessionId: String? = null
     private var lastSessionSyncTime = 0L
     private var lastProgressSyncTime = 0L
-    private val SESSION_SYNC_INTERVAL_MS = 20000L // 20 seconds
+    private val SESSION_SYNC_INTERVAL_MS = 15000L // 15 seconds (match tvOS)
     private val PROGRESS_SYNC_INTERVAL_MS = 90000L // 90 seconds
+
+    // Multi-file audiobook support (match tvOS pattern)
+    private var tracks: List<com.swiftshelf.data.model.Track> = emptyList()
+    private var currentTrackStartOffset: Double = 0.0 // Canonical absolute timestamp
+    private var pendingResumeSeconds: Double? = null // Resume position to apply on first play
 
     // State flows
     private val _currentItem = MutableStateFlow<LibraryItem?>(null)
@@ -112,12 +117,12 @@ class GlobalAudioManager(
         }
     }
 
-    fun loadItem(item: LibraryItem) {
+    fun loadItem(item: LibraryItem, autoPlay: Boolean = true, startTimeSeconds: Double? = null) {
         scope.launch {
             try {
                 _loadingStatus.value = LoadingStatus.Loading
 
-                // Stop current playback
+                // Stop current playback and close session
                 stop()
 
                 // Load full item details with tracks
@@ -130,6 +135,9 @@ class GlobalAudioManager(
                 val fullItem = detailsResult.getOrNull() ?: return@launch
                 _currentItem.value = fullItem
 
+                // Store tracks for multi-file audiobook support
+                tracks = fullItem.media?.tracks?.sortedBy { it.index ?: 0 } ?: emptyList()
+
                 // Build media items from tracks
                 val mediaItems = buildMediaItems(fullItem)
                 if (mediaItems.isEmpty()) {
@@ -141,18 +149,31 @@ class GlobalAudioManager(
                 player?.setMediaItems(mediaItems)
                 player?.prepare()
 
-                // Load progress and seek to saved position
-                val progressResult = repository.getProgress(fullItem.id)
-                val savedProgress = progressResult.getOrNull()
-                val resumePosition = savedProgress?.currentTime?.toLong() ?: 0L
+                // Determine resume position
+                if (startTimeSeconds != null) {
+                    // Explicit start time provided (e.g., from chapter selection)
+                    pendingResumeSeconds = startTimeSeconds
+                } else {
+                    // Load progress and set pending resume position (like tvOS)
+                    val progressResult = repository.getProgress(fullItem.id)
+                    val savedProgress = progressResult.getOrNull()
+                    val savedCurrentTime = savedProgress?.currentTime ?: 0.0
 
-                if (resumePosition > 5000) {
-                    // Resume 5 seconds before last position
-                    player?.seekTo((resumePosition - 5000).coerceAtLeast(0))
+                    if (savedCurrentTime > 5.0) {
+                        // Set pending resume position (will be applied on play())
+                        pendingResumeSeconds = (savedCurrentTime - 5.0).coerceAtLeast(0.0)
+                    } else {
+                        pendingResumeSeconds = null
+                    }
                 }
 
                 updateCurrentTrackInfo()
                 _loadingStatus.value = LoadingStatus.Ready
+
+                // Auto-play if requested (like tvOS)
+                if (autoPlay) {
+                    play()
+                }
 
             } catch (e: Exception) {
                 _loadingStatus.value = LoadingStatus.Error(e.message ?: "Unknown error")
@@ -201,10 +222,24 @@ class GlobalAudioManager(
             val index = p.currentMediaItemIndex
             _currentTrackIndex.value = index
             _currentTrackTitle.value = p.currentMediaItem?.mediaMetadata?.title?.toString()
+
+            // Update startOffset for multi-file audiobooks (critical for tvOS compatibility)
+            if (tracks.isNotEmpty() && index >= 0 && index < tracks.size) {
+                currentTrackStartOffset = tracks[index].startOffset ?: 0.0
+                android.util.Log.d("GlobalAudioManager", "Track changed to index $index, startOffset: ${currentTrackStartOffset}s")
+            } else {
+                currentTrackStartOffset = 0.0
+            }
         }
     }
 
     fun play() {
+        // Apply pending resume position on first play (like tvOS)
+        pendingResumeSeconds?.let { resumeSeconds ->
+            seekToAbsoluteTime(resumeSeconds)
+            pendingResumeSeconds = null // Clear so it doesn't repeat
+        }
+
         player?.play()
     }
 
@@ -222,6 +257,46 @@ class GlobalAudioManager(
 
     fun seekTo(positionMs: Long) {
         player?.seekTo(positionMs)
+    }
+
+    /**
+     * Seek to an absolute time position in seconds for multi-file audiobooks.
+     * This matches the tvOS implementation for proper chapter/track seeking.
+     */
+    private fun seekToAbsoluteTime(absoluteSeconds: Double) {
+        val p = player ?: return
+
+        if (tracks.isEmpty()) {
+            // Single file audiobook - direct seek
+            p.seekTo((absoluteSeconds * 1000).toLong())
+            return
+        }
+
+        // Multi-file audiobook - find which track contains this absolute time
+        var targetTrackIndex = 0
+        var timeWithinTrack = absoluteSeconds
+
+        for ((index, track) in tracks.withIndex()) {
+            val trackStart = track.startOffset ?: 0.0
+            val trackDuration = track.duration ?: 0.0
+            val trackEnd = trackStart + trackDuration
+
+            if (absoluteSeconds >= trackStart && absoluteSeconds < trackEnd) {
+                targetTrackIndex = index
+                timeWithinTrack = absoluteSeconds - trackStart
+                break
+            }
+        }
+
+        // Seek to the target track and position
+        if (targetTrackIndex != p.currentMediaItemIndex) {
+            android.util.Log.d("GlobalAudioManager", "Seeking to track $targetTrackIndex at ${timeWithinTrack}s (absolute: ${absoluteSeconds}s)")
+            p.seekTo(targetTrackIndex, (timeWithinTrack * 1000).toLong())
+        } else {
+            p.seekTo((timeWithinTrack * 1000).toLong())
+        }
+
+        updateCurrentTrackInfo()
     }
 
     fun skipForward(seconds: Int = 15) {
@@ -255,18 +330,35 @@ class GlobalAudioManager(
         progressSyncJob?.cancel()
         sessionSyncJob?.cancel()
 
-        // Main loop: Update UI state
+        // Main loop: Update UI state with proper absolute time calculation
         progressSyncJob = scope.launch {
             while (isActive) {
-                player?.let {
-                    _currentTime.value = it.currentPosition
-                    _duration.value = it.duration
+                player?.let { p ->
+                    // For multi-file audiobooks, calculate absolute time using startOffset
+                    val trackPositionMs = p.currentPosition
+                    val absoluteTimeMs = if (tracks.isNotEmpty()) {
+                        // Add the current track's startOffset to get absolute position
+                        ((currentTrackStartOffset * 1000) + trackPositionMs).toLong()
+                    } else {
+                        // Single file - use position directly
+                        trackPositionMs
+                    }
+
+                    _currentTime.value = absoluteTimeMs
+
+                    // Duration should be total duration from item metadata for multi-file
+                    val totalDuration = _currentItem.value?.media?.duration
+                    _duration.value = if (totalDuration != null && totalDuration > 0) {
+                        (totalDuration * 1000).toLong()
+                    } else {
+                        p.duration
+                    }
                 }
                 delay(100)
             }
         }
 
-        // Session sync timer: 20 seconds
+        // Session sync timer: 15 seconds (match tvOS)
         sessionSyncJob = scope.launch {
             while (isActive) {
                 delay(SESSION_SYNC_INTERVAL_MS)

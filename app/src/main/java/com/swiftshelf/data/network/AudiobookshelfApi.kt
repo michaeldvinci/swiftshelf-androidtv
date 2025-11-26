@@ -14,7 +14,8 @@ interface AudiobookshelfApi {
         @Path("id") libraryId: String,
         @Query("limit") limit: Int = 50,
         @Query("sort") sort: String = "addedAt",
-        @Query("desc") descending: Int = 1
+        @Query("desc") descending: Int = 1,
+        @Query("include") include: String = "progress"
     ): Response<LibraryItemsResponse>
 
     @GET("api/libraries/{id}/search")
@@ -26,7 +27,8 @@ interface AudiobookshelfApi {
 
     @GET("api/items/{id}")
     suspend fun getItemDetails(
-        @Path("id") itemId: String
+        @Path("id") itemId: String,
+        @Query("include") include: String = "progress"
     ): Response<LibraryItem>
 
     @GET("api/items/{id}/cover")

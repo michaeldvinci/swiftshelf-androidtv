@@ -11,7 +11,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LibraryBooks
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.*
+import androidx.tv.material3.DrawerValue as TvDrawerValue
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.NavigationDrawer
+import androidx.tv.material3.rememberDrawerState as rememberTvDrawerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,7 +109,7 @@ fun SwiftShelfApp(viewModel: SwiftShelfViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalTvMaterial3Api::class)
 @Composable
 fun MainAppContent(
     viewModel: SwiftShelfViewModel,
@@ -118,32 +126,37 @@ fun MainAppContent(
 
     // Audio state
     val currentItem by (audioManager?.currentItem ?: MutableStateFlow(null)).collectAsState()
-    val isPlaying by (audioManager?.isPlaying ?: MutableStateFlow(false)).collectAsState()
-    val currentTime by (audioManager?.currentTime ?: MutableStateFlow(0L)).collectAsState()
-    val duration by (audioManager?.duration ?: MutableStateFlow(0L)).collectAsState()
-    val playbackSpeed by (audioManager?.playbackSpeed ?: MutableStateFlow(1.0f)).collectAsState()
 
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerState = rememberTvDrawerState(initialValue = TvDrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val drawerSearchFocusRequester = remember { FocusRequester() }
     val firstCarouselFocusRequester = remember { FocusRequester() }
+
+    // Player visibility state
+    var showPlayer by remember { mutableStateOf(false) }
+    var playerItem by remember { mutableStateOf<com.swiftshelf.data.model.LibraryItem?>(null) }
+
+    // EPUB reader state
+    var showEpubReader by remember { mutableStateOf(false) }
+    var ebookItem by remember { mutableStateOf<com.swiftshelf.data.model.LibraryItem?>(null) }
+    var ebookFile by remember { mutableStateOf<com.swiftshelf.data.model.LibraryFile?>(null) }
+
+    // Update playerItem when audioManager's currentItem changes
+    LaunchedEffect(currentItem) {
+        if (currentItem != null) {
+            playerItem = currentItem
+        }
+    }
 
     val openDrawer: () -> Unit = {
         scope.launch {
-            drawerState.open()
-            drawerSearchFocusRequester.requestFocus()
+            drawerState.setValue(TvDrawerValue.Open)
         }
     }
     val closeDrawer: () -> Unit = {
         scope.launch {
-            drawerState.close()
+            drawerState.setValue(TvDrawerValue.Closed)
             firstCarouselFocusRequester.requestFocus()
         }
-    }
-
-    // Handle back button to close drawer
-    androidx.activity.compose.BackHandler(enabled = drawerState.isOpen) {
-        closeDrawer()
     }
 
     // Auto-focus first carousel item when library tab loads
@@ -152,7 +165,7 @@ fun MainAppContent(
 
     LaunchedEffect(currentTab, recentItems, continueListeningItems) {
         // Only auto-focus on library tab (1) and when drawer is closed
-        if (currentTab == 1 && !drawerState.isOpen) {
+        if (currentTab == 1 && drawerState.currentValue == TvDrawerValue.Closed) {
             val hasItems = recentItems.isNotEmpty() || continueListeningItems.isNotEmpty()
             if (hasItems) {
                 kotlinx.coroutines.delay(100) // Small delay to ensure UI is rendered
@@ -161,73 +174,49 @@ fun MainAppContent(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = true,
-        drawerContent = {
-            DrawerContent(
-                libraries = libraries,
-                selectedLibraryIds = selectedLibraryIds,
-                currentLibraryId = currentLibraryId,
-                searchFocusRequester = drawerSearchFocusRequester,
-                onNavigateRight = closeDrawer,
-                onLibraryClick = { libraryId ->
-                    viewModel.setCurrentLibrary(libraryId)
-                    viewModel.setCurrentTab(1)
-                    closeDrawer()
-                },
-                onSearchClick = {
-                    viewModel.setCurrentTab(0)
-                    closeDrawer()
-                },
-                onSettingsClick = {
-                    viewModel.setCurrentTab(3)
-                    closeDrawer()
-                }
-            )
-        }
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                bottomBar = {
-                    Column {
-                        if (currentItem != null && duration > 0) {
-                            val progress = currentTime.toFloat() / duration.toFloat()
-                            LinearProgressIndicator(
-                                progress = progress,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(2.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-
+    // Top-level Box to layer NavigationDrawer with fullscreen overlays
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = { drawerValue ->
+                TvDrawerContent(
+                    drawerValue = drawerValue,
+                    libraries = libraries,
+                    selectedLibraryIds = selectedLibraryIds,
+                    currentLibraryId = currentLibraryId,
+                    currentTab = currentTab,
+                    currentItem = currentItem,
+                    onLibraryClick = { libraryId ->
+                        viewModel.setCurrentLibrary(libraryId)
+                        viewModel.setCurrentTab(1)
+                        closeDrawer()
+                    },
+                    onSearchClick = {
+                        viewModel.setCurrentTab(0)
+                        closeDrawer()
+                    },
+                    onUserClick = {
+                        // Reserved for future user profile
+                    },
+                    onNowPlayingClick = {
+                        // Set playerItem from currentItem when opening via Now Playing icon
                         if (currentItem != null) {
-                            CompactPlayer(
-                                item = currentItem,
-                                isPlaying = isPlaying,
-                                currentTime = currentTime,
-                                duration = duration,
-                                playbackSpeed = playbackSpeed,
-                                hostUrl = hostUrl,
-                                apiToken = apiKey,
-                                onPlayPause = viewModel::playPause,
-                                onSkipBackward = { viewModel.skipBackward() },
-                                onSkipForward = { viewModel.skipForward() },
-                                onPreviousTrack = { viewModel.previousTrack() },
-                                onNextTrack = { viewModel.nextTrack() },
-                                onSpeedDecrease = { viewModel.setPlaybackSpeed((playbackSpeed - 0.1f).coerceAtLeast(0.5f)) },
-                                onSpeedIncrease = { viewModel.setPlaybackSpeed((playbackSpeed + 0.1f).coerceAtMost(3.0f)) }
-                            )
+                            playerItem = currentItem
                         }
+                        showPlayer = true
+                        closeDrawer()
+                    },
+                    onSettingsClick = {
+                        viewModel.setCurrentTab(3)
+                        closeDrawer()
                     }
-                }
-            ) { paddingValues ->
-                val bottomInset = if (currentItem != null) 120.dp else 0.dp
+                )
+            }
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold { paddingValues ->
                 Box(
-                    modifier = Modifier
-                        .padding(paddingValues)
-                        .padding(bottom = bottomInset)
+                    modifier = Modifier.padding(paddingValues)
                 ) {
                     when (currentTab) {
                         0 -> {
@@ -287,132 +276,194 @@ fun MainAppContent(
                     hostUrl = hostUrl,
                     apiToken = apiKey,
                     onDismiss = viewModel::dismissItemDetails,
-                    onPlayClick = { viewModel.playItem(item) }
+                    onPlayClick = {
+                        playerItem = item // Set immediately so player has item to display
+                        viewModel.playItem(item)
+                        viewModel.dismissItemDetails()
+                        showPlayer = true
+                    },
+                    onPlayFromChapter = { startTimeSeconds ->
+                        playerItem = item // Set immediately so player has item to display
+                        viewModel.playItemFromTime(item, startTimeSeconds)
+                        viewModel.dismissItemDetails()
+                        showPlayer = true
+                    },
+                    onReadClick = if (item.hasEbook) {
+                        {
+                            item.ebookFile?.let { file ->
+                                ebookItem = item
+                                ebookFile = file
+                                showEpubReader = true
+                                viewModel.dismissItemDetails()
+                            }
+                        }
+                    } else null
                 )
             }
+            } // End of inner Box
+        } // End of NavigationDrawer content
+
+        // Fullscreen Media Player - OUTSIDE NavigationDrawer for true fullscreen
+        if (showPlayer && playerItem != null) {
+            val isPlaying by viewModel.isPlaying.collectAsState()
+            val currentTimeMs by viewModel.currentTime.collectAsState()
+            val durationMs by viewModel.duration.collectAsState()
+            val playbackSpeed by viewModel.playbackSpeed.collectAsState()
+            val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
+
+            MediaPlayerScreen(
+                item = playerItem,
+                isPlaying = isPlaying,
+                currentTimeMs = currentTimeMs,
+                durationMs = durationMs,
+                playbackSpeed = playbackSpeed,
+                currentTrackTitle = currentTrackTitle,
+                hostUrl = hostUrl,
+                apiToken = apiKey,
+                onDismiss = { showPlayer = false },
+                onPlayPause = viewModel::playPause,
+                onSkipBackward = viewModel::skipBackward,
+                onSkipForward = viewModel::skipForward,
+                onPreviousTrack = viewModel::previousTrack,
+                onNextTrack = viewModel::nextTrack,
+                onSpeedDecrease = viewModel::decreaseSpeed,
+                onSpeedIncrease = viewModel::increaseSpeed,
+                onSeek = viewModel::seekTo
+            )
         }
-    }
+
+        // EPUB Reader - OUTSIDE NavigationDrawer for true fullscreen
+        if (showEpubReader && ebookItem != null && ebookFile != null) {
+            EpubReaderScreen(
+                item = ebookItem!!,
+                ebookFile = ebookFile!!,
+                hostUrl = hostUrl,
+                apiToken = apiKey,
+                onDismiss = {
+                    showEpubReader = false
+                    ebookItem = null
+                    ebookFile = null
+                }
+            )
+        }
+    } // End of top-level Box
 }
 
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun DrawerContent(
+fun TvDrawerContent(
+    drawerValue: TvDrawerValue,
     libraries: List<com.swiftshelf.data.model.LibrarySummary>,
     selectedLibraryIds: Set<String>,
     currentLibraryId: String?,
-    searchFocusRequester: FocusRequester,
-    onNavigateRight: () -> Unit,
+    currentTab: Int,
+    currentItem: com.swiftshelf.data.model.LibraryItem?,
     onLibraryClick: (String) -> Unit,
     onSearchClick: () -> Unit,
+    onUserClick: () -> Unit,
+    onNowPlayingClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
-    // Filter to show only selected libraries
     val selectedLibraries = libraries.filter { selectedLibraryIds.contains(it.id) }
 
-    ModalDrawerSheet(
+    Column(
         modifier = Modifier
-            .width(320.dp)
-            .onPreviewKeyEvent { event ->
-                // Handle right D-pad press to close drawer
-                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-                    onNavigateRight()
-                    true
-                } else {
-                    false
-                }
-            }
+            .width(80.dp)
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
+        // User initial at top
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable { onUserClick() }
+                .focusable(),
+            contentAlignment = Alignment.Center
         ) {
-            // Header with search icon and user initials
-            Row(
+            Text(
+                text = "M",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // Search icon
+        IconButton(
+            onClick = onSearchClick,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = "Search",
+                modifier = Modifier.size(28.dp),
+                tint = if (currentTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // Library initials (first letter of each library name)
+        selectedLibraries.forEach { library ->
+            val isActive = library.id == currentLibraryId
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isActive) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    .clickable { onLibraryClick(library.id) }
+                    .focusable(),
+                contentAlignment = Alignment.Center
             ) {
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier
-                        .focusRequester(searchFocusRequester)
-                        .focusable()
-                ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search",
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-
-                // User initials circle
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "ME",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-            // Show selected libraries as clickable items
-            if (selectedLibraries.isNotEmpty()) {
                 Text(
-                    text = "Libraries",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                    text = library.name.firstOrNull()?.uppercase() ?: "?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                selectedLibraries.forEach { library ->
-                    val isActive = library.id == currentLibraryId
-                    Text(
-                        text = library.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (isActive) {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.small)
-                            .background(
-                                if (isActive) {
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                } else {
-                                    Color.Transparent
-                                }
-                            )
-                            .clickable { onLibraryClick(library.id) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                    )
-                }
             }
+        }
 
-            Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
 
+        // Now Playing icon (only show if something is playing)
+        if (currentItem != null) {
             Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // Settings
-            NavigationDrawerItem(
-                label = { Text("Settings") },
-                selected = false,
-                onClick = onSettingsClick,
-                icon = {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings")
-                },
-                modifier = Modifier.padding(horizontal = 8.dp)
+            IconButton(
+                onClick = onNowPlayingClick,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    Icons.Default.PlayCircle,
+                    contentDescription = "Now Playing",
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+        }
+
+        // Settings icon at bottom
+        IconButton(
+            onClick = onSettingsClick,
+            modifier = Modifier.size(48.dp)
+        ) {
+            Icon(
+                Icons.Default.Settings,
+                contentDescription = "Settings",
+                modifier = Modifier.size(28.dp),
+                tint = if (currentTab == 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
         }
     }

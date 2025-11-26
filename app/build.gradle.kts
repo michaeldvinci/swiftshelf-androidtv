@@ -65,6 +65,7 @@ dependencies {
     // Android TV
     implementation("androidx.leanback:leanback:1.0.0")
     implementation("androidx.tvprovider:tvprovider:1.0.0")
+    implementation("androidx.tv:tv-material:1.0.0-beta01")
 
     // Media playback
     implementation("androidx.media3:media3-exoplayer:1.1.1")
@@ -90,6 +91,9 @@ dependencies {
 
     // Image loading
     implementation("io.coil-kt:coil-compose:2.4.0")
+
+    // EPUB reader (JSoup for HTML parsing)
+    implementation("org.jsoup:jsoup:1.17.2")
 
     // Secure storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")

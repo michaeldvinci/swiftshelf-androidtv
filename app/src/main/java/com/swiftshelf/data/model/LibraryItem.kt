@@ -5,9 +5,35 @@ import com.google.gson.annotations.SerializedName
 data class LibraryItem(
     val id: String,
     val media: Media?,
+    @SerializedName("userMediaProgress", alternate = ["mediaProgress"])
     val userMediaProgress: UserMediaProgress?,
+    val libraryFiles: List<LibraryFile>?,
     val addedAt: Double?,
     val updatedAt: Double?
+) {
+    /** Get the first ebook file if present */
+    val ebookFile: LibraryFile?
+        get() = libraryFiles?.firstOrNull { it.fileType == "ebook" }
+
+    /** Check if this item has an ebook */
+    val hasEbook: Boolean
+        get() = ebookFile != null
+}
+
+data class LibraryFile(
+    val ino: String?,
+    val fileType: String?,
+    val metadata: LibraryFileMetadata?,
+    val addedAt: Double?,
+    val updatedAt: Double?
+)
+
+data class LibraryFileMetadata(
+    val filename: String?,
+    val ext: String?,
+    val path: String?,
+    val relPath: String?,
+    val size: Long?
 )
 
 data class Media(
