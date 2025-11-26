@@ -1,6 +1,7 @@
 package com.swiftshelf
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.swiftshelf.audio.GlobalAudioManager
@@ -70,6 +71,13 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     // Selected item for details dialog
     private val _selectedItem = MutableStateFlow<LibraryItem?>(null)
     val selectedItem: StateFlow<LibraryItem?> = _selectedItem.asStateFlow()
+
+    // Selected series for series dialog
+    private val _selectedSeries = MutableStateFlow<SeriesWithBooks?>(null)
+    val selectedSeries: StateFlow<SeriesWithBooks?> = _selectedSeries.asStateFlow()
+
+    private val _isLoadingSeries = MutableStateFlow(false)
+    val isLoadingSeries: StateFlow<Boolean> = _isLoadingSeries.asStateFlow()
 
     // Settings
     private val _itemLimit = MutableStateFlow(10)
@@ -286,11 +294,30 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     fun performSearch() {
         viewModelScope.launch {
             val query = _searchQuery.value
-            if (query.isBlank()) return@launch
+            Log.d("SwiftShelf", "performSearch called with query: '$query'")
+            if (query.isBlank()) {
+                Log.d("SwiftShelf", "Query is blank, returning")
+                return@launch
+            }
 
-            val libraryId = _currentLibraryId.value ?: _selectedLibraryIds.value.firstOrNull() ?: return@launch
-            repository?.searchLibrary(libraryId, query, limit = 5)?.onSuccess { results ->
+            if (repository == null) {
+                Log.e("SwiftShelf", "Repository is null!")
+                return@launch
+            }
+
+            val libraryId = _currentLibraryId.value ?: _selectedLibraryIds.value.firstOrNull()
+            Log.d("SwiftShelf", "currentLibraryId=${_currentLibraryId.value}, selectedLibraryIds=${_selectedLibraryIds.value}")
+            if (libraryId == null) {
+                Log.e("SwiftShelf", "No library ID available")
+                return@launch
+            }
+
+            Log.d("SwiftShelf", "Searching library $libraryId for: $query")
+            repository?.searchLibrary(libraryId, query, limit = 10)?.onSuccess { results ->
+                Log.d("SwiftShelf", "Search results: books=${results.book?.size}, series=${results.series?.size}, narrators=${results.narrators?.size}")
                 _searchResults.value = results
+            }?.onFailure { error ->
+                Log.e("SwiftShelf", "Search failed: ${error.message}")
             }
         }
     }
@@ -307,8 +334,49 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun selectItemById(itemId: String) {
+        // Fetch item details by ID and show dialog
+        viewModelScope.launch {
+            repository?.getItemDetails(itemId)?.onSuccess { item ->
+                _selectedItem.value = item
+            }?.onFailure { error ->
+                Log.e("SwiftShelf", "Failed to load item: ${error.message}")
+                _errorMessage.value = "Failed to load item: ${error.message}"
+            }
+        }
+    }
+
     fun dismissItemDetails() {
         _selectedItem.value = null
+    }
+
+    fun selectSeries(seriesId: String) {
+        viewModelScope.launch {
+            _isLoadingSeries.value = true
+            Log.d("SwiftShelf", "Fetching series details for: $seriesId")
+
+            val libraryId = _currentLibraryId.value ?: _selectedLibraryIds.value.firstOrNull()
+            if (libraryId == null) {
+                Log.e("SwiftShelf", "No library selected")
+                _errorMessage.value = "No library selected"
+                _isLoadingSeries.value = false
+                return@launch
+            }
+
+            repository?.getSeriesWithBooks(libraryId, seriesId)?.onSuccess { series ->
+                Log.d("SwiftShelf", "Series: name=${series.name}, books count=${series.books?.size}")
+                _selectedSeries.value = series
+            }?.onFailure { error ->
+                Log.e("SwiftShelf", "Failed to load series: ${error.message}")
+                _errorMessage.value = "Failed to load series: ${error.message}"
+            }
+
+            _isLoadingSeries.value = false
+        }
+    }
+
+    fun dismissSeriesDetails() {
+        _selectedSeries.value = null
     }
 
     fun playItem(item: LibraryItem) {

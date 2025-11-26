@@ -31,6 +31,13 @@ interface AudiobookshelfApi {
         @Query("include") include: String = "progress"
     ): Response<LibraryItem>
 
+    @GET("api/libraries/{libraryId}/series")
+    suspend fun getLibrarySeries(
+        @Path("libraryId") libraryId: String,
+        @Query("filter") filter: String? = null,
+        @Query("include") include: String = "progress"
+    ): Response<LibrarySeriesResponse>
+
     @GET("api/items/{id}/cover")
     suspend fun getItemCover(
         @Path("id") itemId: String

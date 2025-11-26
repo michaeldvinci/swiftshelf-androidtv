@@ -117,6 +117,7 @@ fun MainAppContent(
 ) {
     val currentTab by viewModel.currentTab.collectAsState()
     val selectedItem by viewModel.selectedItem.collectAsState()
+    val selectedSeries by viewModel.selectedSeries.collectAsState()
     val hostUrl by viewModel.hostUrl.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val libraries by viewModel.libraries.collectAsState()
@@ -230,7 +231,8 @@ fun MainAppContent(
                                 apiToken = apiKey,
                                 onSearchQueryChange = viewModel::updateSearchQuery,
                                 onSearch = viewModel::performSearch,
-                                onItemClick = viewModel::selectItem
+                                onItemClick = viewModel::selectItem,
+                                onSeriesClick = viewModel::selectSeries
                             )
                         }
 
@@ -298,6 +300,19 @@ fun MainAppContent(
                             }
                         }
                     } else null
+                )
+            }
+
+            selectedSeries?.let { series ->
+                SeriesDialog(
+                    series = series,
+                    hostUrl = hostUrl,
+                    apiToken = apiKey,
+                    onDismiss = viewModel::dismissSeriesDetails,
+                    onBookClick = { bookId ->
+                        viewModel.dismissSeriesDetails()
+                        viewModel.selectItemById(bookId)
+                    }
                 )
             }
             } // End of inner Box

@@ -101,6 +101,29 @@ class AudiobookRepository {
         }
     }
 
+    suspend fun getSeriesWithBooks(
+        libraryId: String,
+        seriesId: String
+    ): Result<SeriesWithBooks> = withContext(Dispatchers.IO) {
+        try {
+            // Filter by series ID using the id. prefix
+            val filter = "id.${seriesId}"
+            val response = api.getLibrarySeries(libraryId, filter)
+            if (response.isSuccessful && response.body() != null) {
+                val series = response.body()!!.results.firstOrNull()
+                if (series != null) {
+                    Result.success(series)
+                } else {
+                    Result.failure(Exception("Series not found"))
+                }
+            } else {
+                Result.failure(Exception("Failed to fetch series: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateProgress(
         libraryItemId: String,
         duration: Double,
