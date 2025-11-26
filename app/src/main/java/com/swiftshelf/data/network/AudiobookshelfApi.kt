@@ -14,7 +14,8 @@ interface AudiobookshelfApi {
         @Path("id") libraryId: String,
         @Query("limit") limit: Int = 50,
         @Query("sort") sort: String = "addedAt",
-        @Query("desc") descending: Int = 1
+        @Query("desc") descending: Int = 1,
+        @Query("include") include: String = "progress"
     ): Response<LibraryItemsResponse>
 
     @GET("api/libraries/{id}/search")
@@ -26,7 +27,8 @@ interface AudiobookshelfApi {
 
     @GET("api/items/{id}")
     suspend fun getItemDetails(
-        @Path("id") itemId: String
+        @Path("id") itemId: String,
+        @Query("include") include: String = "progress"
     ): Response<LibraryItem>
 
     @GET("api/items/{id}/cover")
@@ -43,4 +45,23 @@ interface AudiobookshelfApi {
     suspend fun getProgress(
         @Path("id") itemId: String
     ): Response<UserMediaProgress>
+
+    // Playback Session Endpoints (Canonical ABS API)
+    @POST("api/items/{id}/play")
+    suspend fun startPlaybackSession(
+        @Path("id") itemId: String,
+        @Body request: SessionStartRequest
+    ): Response<PlaybackSessionResponse>
+
+    @POST("api/session/{sessionId}/sync")
+    suspend fun syncSession(
+        @Path("sessionId") sessionId: String,
+        @Body request: SessionSyncRequest
+    ): Response<Unit>
+
+    @POST("api/session/{sessionId}/close")
+    suspend fun closeSession(
+        @Path("sessionId") sessionId: String,
+        @Body request: SessionSyncRequest?
+    ): Response<Unit>
 }

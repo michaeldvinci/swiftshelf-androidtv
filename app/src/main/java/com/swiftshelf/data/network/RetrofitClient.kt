@@ -27,11 +27,14 @@ object RetrofitClient {
         }
 
         val loggingLevel = if (BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BASIC
+            HttpLoggingInterceptor.Level.HEADERS
         } else {
             HttpLoggingInterceptor.Level.NONE
         }
-        val loggingInterceptor = HttpLoggingInterceptor().apply { level = loggingLevel }
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = loggingLevel
+            android.util.Log.d("RetrofitClient", "Initializing with token: ${token.take(20)}...")
+        }
 
         val client = OkHttpClient.Builder()
             .addInterceptor(authInterceptor)

@@ -1,6 +1,7 @@
 package com.swiftshelf.ui.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -72,29 +73,120 @@ fun LibraryBrowseScreen(
         type.contains("ebook", ignoreCase = true)
     } == true
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(vertical = 32.dp)
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
+    // Track focused item for background and info panel
+    var focusedItem by remember { mutableStateOf<LibraryItem?>(recentItems.firstOrNull() ?: continueListeningItems.firstOrNull()) }
 
-        // Recent Items Carousel
-        if (recentItems.isNotEmpty()) {
-            Text(
-                text = "Recent Items",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 48.dp, vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onBackground
+    Box(
+        modifier = modifier.fillMaxSize()
+    ) {
+        // Full-screen background image
+        focusedItem?.let { item ->
+            val coverUrl = "$hostUrl/api/items/${item.id}/cover?token=$apiToken"
+
+            Image(
+                painter = rememberAsyncImagePainter(coverUrl),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                alpha = 0.4f
             )
 
+            // Scrim gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.3f),
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Black.copy(alpha = 0.95f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        // Content block on left side
+        focusedItem?.let { item ->
+            val author = item.media?.metadata?.authors?.firstOrNull()?.name ?: "Unknown Author"
+            val year = item.media?.metadata?.publishedYear ?: ""
+            val durationHours = item.media?.duration?.let { (it / 3600).toInt() } ?: 0
+            val durationMins = item.media?.duration?.let { ((it % 3600) / 60).toInt() } ?: 0
+            val durationText = if (durationHours > 0) "${durationHours}h ${durationMins}m" else "${durationMins}m"
+
+            androidx.compose.animation.AnimatedContent(
+                targetState = item,
+                transitionSpec = {
+                    androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(500)
+                    ) togetherWith androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(500)
+                    )
+                },
+                label = "content_animation",
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 60.dp, end = 30.dp, bottom = 30.dp)
+                    .fillMaxWidth(0.5f)
+            ) { animatedItem ->
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    // Metadata line
+                    Text(
+                        text = buildString {
+                            append(author)
+                            if (year.isNotEmpty()) append(" • $year")
+                            append(" • $durationText")
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Title
+                    Text(
+                        text = animatedItem.media?.metadata?.title ?: "Unknown Title",
+                        style = MaterialTheme.typography.displaySmall,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Description
+                    animatedItem.media?.metadata?.description?.let { desc ->
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.8f),
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // Carousel at bottom-right
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .fillMaxWidth()
+                .padding(bottom = 32.dp)
+        ) {
+            // Recent Items Carousel
+            if (recentItems.isNotEmpty()) {
             val focusGoesToRecent = recentItems.isNotEmpty()
 
             LazyRow(
-                contentPadding = PaddingValues(start = 48.dp, end = 80.dp),
+                contentPadding = PaddingValues(horizontal = 48.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(bottom = 32.dp)
+                modifier = Modifier.fillMaxWidth()
             ) {
                 itemsIndexed(recentItems, key = { _, item -> item.id }) { index, item ->
                     LibraryItemCard(
@@ -106,7 +198,10 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToRecent && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) focusedItem = item
+                        }
                     )
                 }
             }
@@ -124,8 +219,9 @@ fun LibraryBrowseScreen(
             val focusGoesToContinue = recentItems.isEmpty() && continueListeningItems.isNotEmpty()
 
             LazyRow(
-                contentPadding = PaddingValues(start = 48.dp, end = 80.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(horizontal = 48.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 itemsIndexed(continueListeningItems, key = { _, item -> item.id }) { index, item ->
                     LibraryItemCard(
@@ -137,10 +233,14 @@ fun LibraryBrowseScreen(
                         onClick = { onItemClick(item) },
                         isFirst = index == 0,
                         onNavigateLeft = onRequestOpenDrawer,
-                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null
+                        focusRequester = if (focusGoesToContinue && index == 0) firstItemFocusRequester else null,
+                        onFocusChanged = { focused ->
+                            if (focused) focusedItem = item
+                        }
                     )
                 }
             }
+        }
         }
 
         // Empty state
@@ -152,7 +252,7 @@ fun LibraryBrowseScreen(
                 Text(
                     text = "No items found in this library",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.White.copy(alpha = 0.7f)
                 )
             }
         }
@@ -170,10 +270,12 @@ fun LibraryItemCard(
     isFirst: Boolean = false,
     onNavigateLeft: (() -> Unit)? = null,
     focusRequester: FocusRequester? = null,
+    onFocusChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (isFocused) 1.08f else 1.0f)
+    // Scale to 1.1x for immersive list design
+    val scale by animateFloatAsState(if (isFocused) 1.1f else 1.0f)
     val coverWidth = 160.dp
     val coverAspectRatio = if (isEbook) 2f / 3f else 1f
 
@@ -182,7 +284,10 @@ fun LibraryItemCard(
             .width(coverWidth)
             .scale(scale)
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged { focusState ->
+                isFocused = focusState.isFocused
+                onFocusChanged?.invoke(focusState.isFocused)
+            }
             .focusable()
             .onPreviewKeyEvent { event ->
                 if (
@@ -247,68 +352,7 @@ fun LibraryItemCard(
                 }
             }
         }
-
-        // Title - scrolling when focused
-        val scrollState = rememberScrollState()
-        val title = item.media?.metadata?.title ?: "Unknown"
-
-        LaunchedEffect(isFocused) {
-            if (isFocused) {
-                delay(2000) // Wait 2 seconds before starting scroll
-                while (isFocused) {
-                    val maxScroll = scrollState.maxValue
-                    if (maxScroll > 0) {
-                        scrollState.animateScrollTo(
-                            value = maxScroll,
-                            animationSpec = tween(durationMillis = (maxScroll * 50), easing = LinearEasing)
-                        )
-                        delay(1000)
-                        scrollState.scrollTo(0)
-                        delay(2000)
-                    } else {
-                        break
-                    }
-                }
-            } else {
-                scrollState.scrollTo(0)
-            }
-        }
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .width(coverWidth)
-                .horizontalScroll(scrollState, enabled = false),
-            color = MaterialTheme.colorScheme.onBackground,
-            softWrap = false
-        )
-
-        // Author
-        item.media?.metadata?.authors?.firstOrNull()?.name?.let { author ->
-            Text(
-                text = author,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(coverWidth),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        // Duration
-        item.media?.duration?.let { duration ->
-            val hours = (duration / 3600).toInt()
-            val minutes = ((duration % 3600) / 60).toInt()
-            Text(
-                text = "${hours}h ${minutes}m",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // Removed title/author/duration text - info is now in the content block on left
     }
 }
 

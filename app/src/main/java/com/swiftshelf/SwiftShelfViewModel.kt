@@ -85,6 +85,22 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     private val _currentTab = MutableStateFlow(1)
     val currentTab: StateFlow<Int> = _currentTab.asStateFlow()
 
+    // Audio player state (exposed from GlobalAudioManager)
+    val currentItem: StateFlow<LibraryItem?>
+        get() = audioManager?.currentItem ?: MutableStateFlow(null).asStateFlow()
+    val isPlaying: StateFlow<Boolean>
+        get() = audioManager?.isPlaying ?: MutableStateFlow(false).asStateFlow()
+    val currentTime: StateFlow<Long>
+        get() = audioManager?.currentTime ?: MutableStateFlow(0L).asStateFlow()
+    val duration: StateFlow<Long>
+        get() = audioManager?.duration ?: MutableStateFlow(0L).asStateFlow()
+    val playbackSpeed: StateFlow<Float>
+        get() = audioManager?.playbackSpeed ?: MutableStateFlow(1.0f).asStateFlow()
+    val currentTrackIndex: StateFlow<Int>
+        get() = audioManager?.currentTrackIndex ?: MutableStateFlow(0).asStateFlow()
+    val currentTrackTitle: StateFlow<String?>
+        get() = audioManager?.currentTrackTitle ?: MutableStateFlow(null).asStateFlow()
+
     private var persistedCurrentLibraryId: String? = securePrefs.getCurrentLibraryId()
 
     init {
@@ -280,7 +296,15 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun selectItem(item: LibraryItem) {
-        _selectedItem.value = item
+        // Fetch full item details (including chapters) before showing dialog
+        viewModelScope.launch {
+            _selectedItem.value = item // Show dialog immediately with basic info
+
+            // Fetch full details with chapters in background
+            repository?.getItemDetails(item.id)?.onSuccess { fullItem ->
+                _selectedItem.value = fullItem
+            }
+        }
     }
 
     fun dismissItemDetails() {
@@ -289,7 +313,10 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
 
     fun playItem(item: LibraryItem) {
         audioManager?.loadItem(item)
-        dismissItemDetails()
+    }
+
+    fun playItemFromTime(item: LibraryItem, startTimeSeconds: Double) {
+        audioManager?.loadItem(item, startTimeSeconds = startTimeSeconds)
     }
 
     fun setCurrentTab(index: Int) {
@@ -329,6 +356,20 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setPlaybackSpeed(speed: Float) {
         audioManager?.setPlaybackSpeed(speed)
+    }
+
+    fun increaseSpeed() {
+        val currentSpeed = audioManager?.playbackSpeed?.value ?: 1.0f
+        val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
+        val nextIndex = (speedOptions.indexOf(currentSpeed) + 1).coerceAtMost(speedOptions.lastIndex)
+        audioManager?.setPlaybackSpeed(speedOptions[nextIndex])
+    }
+
+    fun decreaseSpeed() {
+        val currentSpeed = audioManager?.playbackSpeed?.value ?: 1.0f
+        val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
+        val prevIndex = (speedOptions.indexOf(currentSpeed) - 1).coerceAtLeast(0)
+        audioManager?.setPlaybackSpeed(speedOptions[prevIndex])
     }
 
     fun setCurrentLibrary(libraryId: String) {

@@ -6,7 +6,7 @@
 
 A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/), offering a sleek, remote-friendly interface for browsing and playing your audiobooks.
 
-![Screenshot: Login](screenshots/login.png)
+![Screenshot: Home](screenshots/home.png)
 
 ## Features
 
@@ -15,7 +15,7 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 - Credentials securely stored using Android's EncryptedSharedPreferences
 - Seamless reconnection after app relaunch
 
-![Screenshot: Library Selection](screenshots/library-selection.png)
+<!-- ![Screenshot: Library Selection](screenshots/library-selection.png) -->
 
 ### Library Selection & Persistence
 - Choose from available Audiobookshelf libraries
@@ -28,7 +28,7 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 - Cover artwork with author, duration, and playback progress
 - Smooth horizontal scrolling carousels
 
-![Screenshot: Library Browse](screenshots/library-browse.png)
+<!-- ![Screenshot: Library Browse](screenshots/library-browse.png) -->
 
 ### Search
 - Query your library with natural search
@@ -38,21 +38,29 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 ![Screenshot: Search](screenshots/search.png)
 
 ### Detailed Item Popup & Quick Play
-- Material Design sheet with book details
+- Material Design dialog with book details
 - Author, narrator, series information
 - Duration and progress tracking
-- Prominent play button to start playback
+- Chapter selection for direct playback
+- Play and Read buttons for audiobooks with ebooks
 
 ![Screenshot: Book Details](screenshots/book-details.png)
 
-### Compact Mini Player
-- Bottom player banner with playback controls
-- Cover artwork and elapsed time display
+### Full-Screen Media Player
+- Immersive playback experience with blurred cover background
+- Transport controls: play/pause, skip forward/back (30s/10s)
 - Playback speed adjustments (0.5x - 3.0x)
-- Play/pause without leaving browse UI
-- Thin progress bar across the screen bottom
+- Chapter navigation with expandable chapter list
+- Progress scrubbing with time display
+- D-pad optimized for Android TV remotes
 
-![Screenshot: Mini Player](screenshots/mini-player.png)
+![Screenshot: Media Player](screenshots/full-player.png)
+
+### EPUB Reader
+- Two-page landscape layout optimized for TV
+- Sepia reading theme for comfortable viewing
+- Chapter navigation menu
+- Swipe or button navigation between pages
 
 ### Customizable Experience
 - Adjust library item fetch count (default: 10)
@@ -76,9 +84,11 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 
 ## Technical Features
 
-- **Progress Sync**: Automatically syncs playback progress to Audiobookshelf every 5 seconds
+- **Progress Sync**: Automatically syncs playback progress to Audiobookshelf (session sync every 15s, progress sync every 90s)
+- **Session Management**: Proper playback session handling with Audiobookshelf server
 - **MediaSession Integration**: System-level playback controls and notifications
 - **ExoPlayer**: High-quality audio playback with chapter support
+- **EPUB Support**: Built-in EPUB parser and reader for ebook content
 - **Jetpack Compose**: Modern, declarative UI framework
 - **Material Design 3**: Latest Android design guidelines
 
@@ -92,7 +102,7 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 
 ### From Release
 1. Download the latest APK from the [Releases](https://github.com/michaeldvinci/swiftshelf-android/releases) page
-2. Install via ADB: `adb install app-debug.apk`
+2. Install via ADB: `adb install swiftshelf-<version>.apk`
 3. Or sideload using your preferred method
 
 ### Building from Source
@@ -143,17 +153,25 @@ app/src/main/java/com/swiftshelf/
 ├── MainActivity.kt              # Main entry point
 ├── SwiftShelfViewModel.kt       # App state management
 ├── audio/
-│   ├── GlobalAudioManager.kt   # Audio playback management
+│   ├── GlobalAudioManager.kt    # Audio playback management
 │   └── MediaSessionManager.kt   # System media controls
 ├── data/
-│   ├── model/                  # Data models
-│   ├── network/                # API client
-│   └── repository/             # Data repositories
+│   ├── model/                   # Data models
+│   ├── network/                 # API client
+│   └── repository/              # Data repositories
+├── epub/
+│   └── EPUBParser.kt            # EPUB file parsing
 ├── ui/
-│   ├── screens/                # Composable screens
-│   └── theme/                  # App theming
+│   ├── screens/                 # Composable screens
+│   │   ├── BookDetailsDialog.kt # Book info popup
+│   │   ├── CompactPlayer.kt     # Mini player banner
+│   │   ├── EpubReaderScreen.kt  # EPUB reader
+│   │   ├── LibraryBrowseScreen.kt # Main browse UI
+│   │   ├── MediaPlayerScreen.kt # Full-screen player
+│   │   └── ...
+│   └── theme/                   # App theming
 └── util/
-    └── SecurePreferences.kt    # Encrypted storage
+    └── SecurePreferences.kt     # Encrypted storage
 ```
 
 ### Building
@@ -168,8 +186,7 @@ app/src/main/java/com/swiftshelf/
 - [ ] Offline playback support
 - [ ] Sleep timer
 - [ ] Playback queue management
-- [ ] Multiple playback profiles
-- [ ] Widget support
+- [ ] Bookmarks
 - [ ] Android Auto integration
 - [ ] Cast support
 
