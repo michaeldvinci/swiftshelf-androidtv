@@ -44,7 +44,6 @@ fun MediaPlayerScreen(
     currentTimeMs: Long,
     durationMs: Long,
     playbackSpeed: Float,
-    currentTrackTitle: String?,
     hostUrl: String,
     apiToken: String,
     onDismiss: () -> Unit,
@@ -181,11 +180,15 @@ fun MediaPlayerScreen(
                     )
                 }
 
-                // Current track/chapter title
-                currentTrackTitle?.let { trackTitle ->
-                    Spacer(modifier = Modifier.height(2.dp))
+                // Current chapter name
+                val currentChapter = findCurrentChapter(
+                    chapters = item.media?.chapters,
+                    currentTimeMs = currentTimeMs
+                )
+                currentChapter?.title?.let { chapterTitle ->
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = trackTitle,
+                        text = chapterTitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray.copy(alpha = 0.8f),
                         maxLines = 1,
@@ -363,11 +366,12 @@ private fun TransportControls(
         Surface(
             onClick = onPlayPause,
             modifier = Modifier
-                .size(if (playPauseFocused) 56.dp else 52.dp)
+                .size(56.dp)
                 .focusRequester(playPauseFocusRequester)
                 .onFocusChanged { playPauseFocused = it.isFocused },
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary
+            color = if (playPauseFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+            border = if (playPauseFocused) androidx.compose.foundation.BorderStroke(3.dp, Color.White) else null
         ) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -660,5 +664,15 @@ private fun formatTimeSeconds(seconds: Double): String {
         String.format("%d:%02d:%02d", hours, minutes, secs)
     } else {
         String.format("%d:%02d", minutes, secs)
+    }
+}
+
+private fun findCurrentChapter(chapters: List<Chapter>?, currentTimeMs: Long): Chapter? {
+    if (chapters.isNullOrEmpty()) return null
+    val currentTimeSeconds = currentTimeMs / 1000.0
+    return chapters.find { chapter ->
+        val start = chapter.start ?: 0.0
+        val end = chapter.end ?: Double.MAX_VALUE
+        currentTimeSeconds >= start && currentTimeSeconds < end
     }
 }
