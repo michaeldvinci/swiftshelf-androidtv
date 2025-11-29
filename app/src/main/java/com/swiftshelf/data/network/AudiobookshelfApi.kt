@@ -6,6 +6,12 @@ import retrofit2.http.*
 
 interface AudiobookshelfApi {
 
+    // Login (no auth required)
+    @POST("login")
+    suspend fun login(
+        @Body request: LoginRequest
+    ): Response<LoginResponse>
+
     @GET("api/libraries")
     suspend fun getLibraries(): Response<LibraryResponse>
 
@@ -15,7 +21,7 @@ interface AudiobookshelfApi {
         @Query("limit") limit: Int = 50,
         @Query("sort") sort: String = "addedAt",
         @Query("desc") descending: Int = 1,
-        @Query("include") include: String = "progress"
+        @Query("expanded") expanded: Int = 1
     ): Response<LibraryItemsResponse>
 
     @GET("api/libraries/{id}/search")

@@ -51,6 +51,34 @@ object RetrofitClient {
             .build()
     }
 
+    /**
+     * Create an unauthenticated API client for login requests
+     */
+    fun createUnauthenticatedApi(baseUrl: String): AudiobookshelfApi {
+        val loggingLevel = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BODY
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
+        val loggingInterceptor = HttpLoggingInterceptor().apply {
+            level = loggingLevel
+        }
+
+        val client = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(AudiobookshelfApi::class.java)
+    }
+
     fun getApi(): AudiobookshelfApi {
         return retrofit?.create(AudiobookshelfApi::class.java)
             ?: throw IllegalStateException("RetrofitClient not initialized. Call initialize() first.")

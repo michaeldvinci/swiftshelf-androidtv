@@ -15,7 +15,7 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 - Credentials securely stored using Android's EncryptedSharedPreferences
 - Seamless reconnection after app relaunch
 
-<!-- ![Screenshot: Library Selection](screenshots/library-selection.png) -->
+![Screenshot: Library Selection](screenshots/library-select.png)
 
 ### Library Selection & Persistence
 - Choose from available Audiobookshelf libraries

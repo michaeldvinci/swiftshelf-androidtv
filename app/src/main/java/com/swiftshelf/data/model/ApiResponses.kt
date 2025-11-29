@@ -47,3 +47,20 @@ data class SessionSyncRequest(
     val timeListened: Double,               // Delta since last sync
     val duration: Double
 )
+
+// Login Models
+data class LoginRequest(
+    val username: String,
+    val password: String
+)
+
+data class LoginResponse(
+    val user: LoginUser,
+    val userDefaultLibraryId: String?
+)
+
+data class LoginUser(
+    val id: String,
+    val username: String,
+    val token: String
+)

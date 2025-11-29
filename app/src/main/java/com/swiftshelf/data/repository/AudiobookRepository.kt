@@ -36,7 +36,18 @@ class AudiobookRepository {
                 descending = if (descending) 1 else 0
             )
             if (response.isSuccessful && response.body() != null) {
-                Result.success(response.body()!!.results)
+                val items = response.body()!!.results
+                // Fetch progress for each item separately (ABS doesn't include progress in library items response)
+                val itemsWithProgress = items.map { item ->
+                    val progressResult = getProgress(item.id)
+                    val progress = progressResult.getOrNull()
+                    if (progress != null) {
+                        item.copy(userMediaProgress = progress)
+                    } else {
+                        item
+                    }
+                }
+                Result.success(itemsWithProgress)
             } else {
                 Result.failure(Exception("Failed to fetch library items: ${response.code()}"))
             }
@@ -106,11 +117,19 @@ class AudiobookRepository {
         seriesId: String
     ): Result<SeriesWithBooks> = withContext(Dispatchers.IO) {
         try {
-            // Filter by series ID using the id. prefix
-            val filter = "id.${seriesId}"
+            // Filter by series ID - ABS requires base64 encoded filter
+            // Format: id.{seriesId} encoded as base64
+            val filterValue = "id.$seriesId"
+            val filter = android.util.Base64.encodeToString(
+                filterValue.toByteArray(Charsets.UTF_8),
+                android.util.Base64.NO_WRAP
+            )
+            android.util.Log.d("SwiftShelf", "getSeriesWithBooks: libraryId=$libraryId, seriesId=$seriesId, filter=$filter")
             val response = api.getLibrarySeries(libraryId, filter)
+            android.util.Log.d("SwiftShelf", "getSeriesWithBooks response: code=${response.code()}, body=${response.body()}")
             if (response.isSuccessful && response.body() != null) {
                 val series = response.body()!!.results.firstOrNull()
+                android.util.Log.d("SwiftShelf", "getSeriesWithBooks found series: ${series?.name}, books=${series?.books?.size}")
                 if (series != null) {
                     Result.success(series)
                 } else {
@@ -120,6 +139,7 @@ class AudiobookRepository {
                 Result.failure(Exception("Failed to fetch series: ${response.code()}"))
             }
         } catch (e: Exception) {
+            android.util.Log.e("SwiftShelf", "getSeriesWithBooks error: ${e.message}", e)
             Result.failure(e)
         }
     }

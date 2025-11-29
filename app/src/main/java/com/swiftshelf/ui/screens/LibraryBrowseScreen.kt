@@ -109,7 +109,7 @@ fun LibraryBrowseScreen(
 
         // Content block on left side
         focusedItem?.let { item ->
-            val author = item.media?.metadata?.authors?.firstOrNull()?.name ?: "Unknown Author"
+            val author = item.media?.metadata?.getAuthorDisplayName() ?: "Unknown Author"
             val year = item.media?.metadata?.publishedYear ?: ""
             val durationHours = item.media?.duration?.let { (it / 3600).toInt() } ?: 0
             val durationMins = item.media?.duration?.let { ((it % 3600) / 60).toInt() } ?: 0
