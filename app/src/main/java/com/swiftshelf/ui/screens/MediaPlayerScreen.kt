@@ -22,7 +22,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -36,6 +38,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.swiftshelf.data.model.Chapter
 import com.swiftshelf.data.model.LibraryItem
 
+@OptIn(ExperimentalComposeUiApi::class)
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun MediaPlayerScreen(
@@ -91,6 +94,11 @@ fun MediaPlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            // Trap focus within the player - prevent navigation to items behind
+            .focusProperties {
+                exit = { FocusRequester.Cancel }
+            }
+            .focusable()
     ) {
         // Background gradient overlay on cover art
         val coverUrl = "$hostUrl/api/items/${item.id}/cover?token=$apiToken"
