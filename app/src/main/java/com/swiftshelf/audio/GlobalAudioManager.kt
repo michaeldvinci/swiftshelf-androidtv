@@ -17,7 +17,8 @@ class GlobalAudioManager(
     private val context: Context,
     private val repository: AudiobookRepository,
     private val hostUrl: String,
-    private val apiToken: String
+    private val apiToken: String,
+    initialPlaybackSpeed: Float = 1.0f
 ) {
 
     private var player: ExoPlayer? = null
@@ -50,7 +51,7 @@ class GlobalAudioManager(
     private val _duration = MutableStateFlow(0L)
     val duration: StateFlow<Long> = _duration.asStateFlow()
 
-    private val _playbackSpeed = MutableStateFlow(1.0f)
+    private val _playbackSpeed = MutableStateFlow(initialPlaybackSpeed)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
     private val _currentTrackIndex = MutableStateFlow(0)
@@ -67,6 +68,8 @@ class GlobalAudioManager(
 
     init {
         initializePlayer()
+        // Apply initial playback speed
+        player?.setPlaybackSpeed(initialPlaybackSpeed)
     }
 
     private fun initializePlayer() {
@@ -240,6 +243,8 @@ class GlobalAudioManager(
             pendingResumeSeconds = null // Clear so it doesn't repeat
         }
 
+        // Apply current playback speed setting
+        player?.setPlaybackSpeed(_playbackSpeed.value)
         player?.play()
     }
 

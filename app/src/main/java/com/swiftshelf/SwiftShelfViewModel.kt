@@ -8,6 +8,7 @@ import com.swiftshelf.audio.GlobalAudioManager
 import com.swiftshelf.data.model.*
 import com.swiftshelf.data.network.RetrofitClient
 import com.swiftshelf.data.repository.AudiobookRepository
+import com.swiftshelf.ui.screens.AuthType
 import com.swiftshelf.util.SecurePreferences
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -29,6 +30,15 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
+
+    private val _username = MutableStateFlow("")
+    val username: StateFlow<String> = _username.asStateFlow()
+
+    private val _password = MutableStateFlow("")
+    val password: StateFlow<String> = _password.asStateFlow()
+
+    private val _authType = MutableStateFlow(AuthType.API_KEY)
+    val authType: StateFlow<AuthType> = _authType.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -122,7 +132,8 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
         if (!savedHost.isNullOrEmpty() && !savedKey.isNullOrEmpty()) {
             _hostUrl.value = savedHost
             _apiKey.value = savedKey
-            connectToServer(savedHost, savedKey)
+            // Use saved API key directly (it could be an API key or a token from username/password login)
+            connectWithApiKey(savedHost, savedKey)
         } else {
             _uiState.value = UiState.Login
         }
@@ -148,51 +159,44 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
         _apiKey.value = key
     }
 
-    fun connectToServer(host: String = _hostUrl.value, key: String = _apiKey.value) {
+    fun updateUsername(value: String) {
+        _username.value = value
+    }
+
+    fun updatePassword(value: String) {
+        _password.value = value
+    }
+
+    fun updateAuthType(type: AuthType) {
+        _authType.value = type
+    }
+
+    fun connectToServer() {
+        when (_authType.value) {
+            AuthType.API_KEY -> connectWithApiKey(_hostUrl.value, _apiKey.value)
+            AuthType.USERNAME_PASSWORD -> connectWithUsernamePassword(_hostUrl.value, _username.value, _password.value)
+        }
+    }
+
+    private fun connectWithApiKey(host: String, key: String) {
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             _errorMessage.value = null
 
             try {
                 // Ensure URL has protocol
-                val formattedHost = if (!host.startsWith("http")) {
-                    "https://$host"
-                } else {
-                    host
-                }
+                val formattedHost = formatHost(host)
 
                 // Initialize Retrofit
                 RetrofitClient.initialize(formattedHost, key)
 
                 // Initialize repository after RetrofitClient
-                if (repository == null) {
-                    repository = AudiobookRepository()
-                }
+                repository = AudiobookRepository()
 
-                // Fetch libraries
+                // Fetch libraries to verify connection
                 val result = repository!!.getLibraries()
                 result.onSuccess { libs ->
-                    _libraries.value = libs
-
-                    // Save credentials
-                    securePrefs.saveHostUrl(formattedHost)
-                    securePrefs.saveApiKey(key)
-
-                    // Initialize audio manager
-                    audioManager = GlobalAudioManager(
-                        context = getApplication(),
-                        repository = repository!!,
-                        hostUrl = formattedHost,
-                        apiToken = key
-                    )
-
-                    if (_selectedLibraryIds.value.isEmpty()) {
-                        _uiState.value = UiState.LibrarySelection
-                    } else {
-                        ensureCurrentLibrary()
-                        loadLibraryItems()
-                        _uiState.value = UiState.Main
-                    }
+                    onConnectionSuccess(libs, formattedHost, key)
                 }.onFailure { error ->
                     _errorMessage.value = error.message ?: "Connection failed"
                     _uiState.value = UiState.Login
@@ -201,6 +205,85 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
                 _errorMessage.value = e.message ?: "Unknown error"
                 _uiState.value = UiState.Login
             }
+        }
+    }
+
+    private fun connectWithUsernamePassword(host: String, username: String, password: String) {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            _errorMessage.value = null
+
+            try {
+                // Ensure URL has protocol
+                val formattedHost = formatHost(host)
+
+                // Create unauthenticated API for login
+                val unauthApi = RetrofitClient.createUnauthenticatedApi(formattedHost)
+
+                // Attempt login
+                val loginRequest = LoginRequest(username = username, password = password)
+                val loginResponse = unauthApi.login(loginRequest)
+
+                if (loginResponse.isSuccessful && loginResponse.body() != null) {
+                    val token = loginResponse.body()!!.user.token
+
+                    // Now initialize with the token
+                    RetrofitClient.initialize(formattedHost, token)
+                    repository = AudiobookRepository()
+
+                    // Fetch libraries to verify
+                    val result = repository!!.getLibraries()
+                    result.onSuccess { libs ->
+                        onConnectionSuccess(libs, formattedHost, token)
+                    }.onFailure { error ->
+                        _errorMessage.value = error.message ?: "Failed to fetch libraries"
+                        _uiState.value = UiState.Login
+                    }
+                } else {
+                    val errorBody = loginResponse.errorBody()?.string()
+                    _errorMessage.value = when (loginResponse.code()) {
+                        401 -> "Invalid username or password"
+                        else -> "Login failed: ${loginResponse.code()}"
+                    }
+                    _uiState.value = UiState.Login
+                }
+            } catch (e: Exception) {
+                _errorMessage.value = e.message ?: "Unknown error"
+                _uiState.value = UiState.Login
+            }
+        }
+    }
+
+    private fun formatHost(host: String): String {
+        return if (!host.startsWith("http")) {
+            "https://$host"
+        } else {
+            host
+        }
+    }
+
+    private fun onConnectionSuccess(libs: List<LibrarySummary>, formattedHost: String, token: String) {
+        _libraries.value = libs
+
+        // Save credentials
+        securePrefs.saveHostUrl(formattedHost)
+        securePrefs.saveApiKey(token)
+
+        // Initialize audio manager with preferred playback speed
+        audioManager = GlobalAudioManager(
+            context = getApplication(),
+            repository = repository!!,
+            hostUrl = formattedHost,
+            apiToken = token,
+            initialPlaybackSpeed = _preferredPlaybackSpeed.value
+        )
+
+        if (_selectedLibraryIds.value.isEmpty()) {
+            _uiState.value = UiState.LibrarySelection
+        } else {
+            ensureCurrentLibrary()
+            loadLibraryItems()
+            _uiState.value = UiState.Main
         }
     }
 
@@ -427,17 +510,11 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun increaseSpeed() {
-        val currentSpeed = audioManager?.playbackSpeed?.value ?: 1.0f
-        val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
-        val nextIndex = (speedOptions.indexOf(currentSpeed) + 1).coerceAtMost(speedOptions.lastIndex)
-        audioManager?.setPlaybackSpeed(speedOptions[nextIndex])
+        updatePreferredPlaybackSpeed((_preferredPlaybackSpeed.value + 0.1f).coerceAtMost(3.0f))
     }
 
     fun decreaseSpeed() {
-        val currentSpeed = audioManager?.playbackSpeed?.value ?: 1.0f
-        val speedOptions = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.5f, 3.0f)
-        val prevIndex = (speedOptions.indexOf(currentSpeed) - 1).coerceAtLeast(0)
-        audioManager?.setPlaybackSpeed(speedOptions[prevIndex])
+        updatePreferredPlaybackSpeed((_preferredPlaybackSpeed.value - 0.1f).coerceAtLeast(0.5f))
     }
 
     fun setCurrentLibrary(libraryId: String) {
@@ -466,11 +543,14 @@ class SwiftShelfViewModel(application: Application) : AndroidViewModel(applicati
     fun updatePreferredPlaybackSpeed(speed: Float) {
         _preferredPlaybackSpeed.value = speed
         securePrefs.savePreferredPlaybackSpeed(speed)
+        // Also update the audio manager so it takes effect on next play
+        audioManager?.setPlaybackSpeed(speed)
     }
 
     fun logout() {
         audioManager?.release()
         audioManager = null
+        repository = null  // Clear repository so it gets recreated with new token on next login
         securePrefs.clear()
         _uiState.value = UiState.Login
         _selectedLibraryIds.value = emptySet()

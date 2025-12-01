@@ -49,11 +49,17 @@ data class Metadata(
     val title: String?,
     val subtitle: String?,
     val authors: List<Author>?,
+    val authorName: String?,  // Some API responses use this instead of authors array
     val narrators: List<String>?,
     val series: List<SeriesInfo>?,
     val publishedYear: String?,
     val description: String?
-)
+) {
+    /** Get author name from either the authors array or authorName field */
+    fun getAuthorDisplayName(): String? {
+        return authors?.firstOrNull()?.name ?: authorName
+    }
+}
 
 data class Author(
     val id: String?,

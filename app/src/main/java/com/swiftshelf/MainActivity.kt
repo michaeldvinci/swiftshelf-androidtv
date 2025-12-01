@@ -77,16 +77,25 @@ fun SwiftShelfApp(viewModel: SwiftShelfViewModel) {
             is SwiftShelfViewModel.UiState.Login -> {
                 val hostUrl by viewModel.hostUrl.collectAsState()
                 val apiKey by viewModel.apiKey.collectAsState()
+                val username by viewModel.username.collectAsState()
+                val password by viewModel.password.collectAsState()
+                val authType by viewModel.authType.collectAsState()
                 val errorMessage by viewModel.errorMessage.collectAsState()
 
                 LoginScreen(
                     hostUrl = hostUrl,
                     apiKey = apiKey,
+                    username = username,
+                    password = password,
+                    authType = authType,
                     isLoading = false,
                     errorMessage = errorMessage,
                     onHostUrlChange = viewModel::updateHostUrl,
                     onApiKeyChange = viewModel::updateApiKey,
-                    onConnectClick = { viewModel.connectToServer() }
+                    onUsernameChange = viewModel::updateUsername,
+                    onPasswordChange = viewModel::updatePassword,
+                    onAuthTypeChange = viewModel::updateAuthType,
+                    onConnectClick = viewModel::connectToServer
                 )
             }
 
@@ -141,6 +150,9 @@ fun MainAppContent(
     var ebookItem by remember { mutableStateOf<com.swiftshelf.data.model.LibraryItem?>(null) }
     var ebookFile by remember { mutableStateOf<com.swiftshelf.data.model.LibraryFile?>(null) }
 
+    // Settings popup state
+    var showSettings by remember { mutableStateOf(false) }
+
     // Update playerItem when audioManager's currentItem changes
     LaunchedEffect(currentItem) {
         if (currentItem != null) {
@@ -156,7 +168,7 @@ fun MainAppContent(
     val closeDrawer: () -> Unit = {
         scope.launch {
             drawerState.setValue(TvDrawerValue.Closed)
-            firstCarouselFocusRequester.requestFocus()
+            // Focus will be handled by LaunchedEffect when library tab is visible
         }
     }
 
@@ -164,13 +176,17 @@ fun MainAppContent(
     val recentItems by viewModel.recentItems.collectAsState()
     val continueListeningItems by viewModel.continueListeningItems.collectAsState()
 
-    LaunchedEffect(currentTab, recentItems, continueListeningItems) {
+    LaunchedEffect(currentTab, recentItems, continueListeningItems, drawerState.currentValue) {
         // Only auto-focus on library tab (1) and when drawer is closed
         if (currentTab == 1 && drawerState.currentValue == TvDrawerValue.Closed) {
             val hasItems = recentItems.isNotEmpty() || continueListeningItems.isNotEmpty()
             if (hasItems) {
                 kotlinx.coroutines.delay(100) // Small delay to ensure UI is rendered
-                firstCarouselFocusRequester.requestFocus()
+                try {
+                    firstCarouselFocusRequester.requestFocus()
+                } catch (e: IllegalStateException) {
+                    // Focus requester not attached yet, ignore
+                }
             }
         }
     }
@@ -208,7 +224,7 @@ fun MainAppContent(
                         closeDrawer()
                     },
                     onSettingsClick = {
-                        viewModel.setCurrentTab(3)
+                        showSettings = true
                         closeDrawer()
                     }
                 )
@@ -217,7 +233,9 @@ fun MainAppContent(
             Box(modifier = Modifier.fillMaxSize()) {
             Scaffold { paddingValues ->
                 Box(
-                    modifier = Modifier.padding(paddingValues)
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
                 ) {
                     when (currentTab) {
                         0 -> {
@@ -253,21 +271,6 @@ fun MainAppContent(
                             )
                         }
 
-                        3 -> {
-                            val itemLimit by viewModel.itemLimit.collectAsState()
-                            val progressBarColor by viewModel.progressBarColor.collectAsState()
-                            val preferredPlaybackSpeed by viewModel.preferredPlaybackSpeed.collectAsState()
-
-                            SettingsScreen(
-                                itemLimit = itemLimit,
-                                progressBarColor = progressBarColor,
-                                preferredPlaybackSpeed = preferredPlaybackSpeed,
-                                onItemLimitChange = viewModel::updateItemLimit,
-                                onProgressBarColorChange = viewModel::updateProgressBarColor,
-                                onPlaybackSpeedChange = viewModel::updatePreferredPlaybackSpeed,
-                                onLogout = viewModel::logout
-                            )
-                        }
                     }
                 }
             }
@@ -323,8 +326,7 @@ fun MainAppContent(
             val isPlaying by viewModel.isPlaying.collectAsState()
             val currentTimeMs by viewModel.currentTime.collectAsState()
             val durationMs by viewModel.duration.collectAsState()
-            val playbackSpeed by viewModel.playbackSpeed.collectAsState()
-            val currentTrackTitle by viewModel.currentTrackTitle.collectAsState()
+            val playbackSpeed by viewModel.preferredPlaybackSpeed.collectAsState()
 
             MediaPlayerScreen(
                 item = playerItem,
@@ -332,7 +334,6 @@ fun MainAppContent(
                 currentTimeMs = currentTimeMs,
                 durationMs = durationMs,
                 playbackSpeed = playbackSpeed,
-                currentTrackTitle = currentTrackTitle,
                 hostUrl = hostUrl,
                 apiToken = apiKey,
                 onDismiss = { showPlayer = false },
@@ -359,6 +360,27 @@ fun MainAppContent(
                     ebookItem = null
                     ebookFile = null
                 }
+            )
+        }
+
+        // Settings Popup - OUTSIDE NavigationDrawer for true fullscreen
+        if (showSettings) {
+            val itemLimit by viewModel.itemLimit.collectAsState()
+            val progressBarColor by viewModel.progressBarColor.collectAsState()
+            val preferredPlaybackSpeed by viewModel.preferredPlaybackSpeed.collectAsState()
+
+            SettingsScreen(
+                itemLimit = itemLimit,
+                progressBarColor = progressBarColor,
+                preferredPlaybackSpeed = preferredPlaybackSpeed,
+                libraries = libraries,
+                selectedLibraryIds = selectedLibraryIds,
+                onItemLimitChange = viewModel::updateItemLimit,
+                onProgressBarColorChange = viewModel::updateProgressBarColor,
+                onPlaybackSpeedChange = viewModel::updatePreferredPlaybackSpeed,
+                onLibraryToggle = viewModel::toggleLibrarySelection,
+                onLogout = viewModel::logout,
+                onDismiss = { showSettings = false }
             )
         }
     } // End of top-level Box
