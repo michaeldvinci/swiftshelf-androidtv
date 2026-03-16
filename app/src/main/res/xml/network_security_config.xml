@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration
+    Allows both HTTP and HTTPS connections to user-specified servers.
+    Android 9+ blocks cleartext (HTTP) traffic by default; this config
+    re-enables it so users with non-HTTPS Audiobookshelf servers can connect.
+    See: https://developer.android.com/training/articles/security-config
+-->
+<network-security-config>
+    <!-- Debug builds: Trust user-installed certificates for development/testing -->
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Trust system certificates -->
+            <certificates src="system" />
+            <!-- Also trust user-installed certificates (for debugging/older emulators) -->
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+
+    <!-- Base config for all builds -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

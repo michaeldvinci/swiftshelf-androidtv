@@ -28,11 +28,13 @@ class SecurePreferences(context: Context) {
     }
 
     fun saveApiKey(apiKey: String) {
-        sharedPreferences.edit().putString(KEY_API_KEY, apiKey).apply()
+        // Trim whitespace and newlines to prevent HTTP header issues
+        sharedPreferences.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
     }
 
     fun getApiKey(): String? {
-        return sharedPreferences.getString(KEY_API_KEY, null)
+        // Trim when retrieving to ensure no whitespace/newlines in token
+        return sharedPreferences.getString(KEY_API_KEY, null)?.trim()
     }
 
     fun saveSelectedLibraries(libraryIds: Set<String>) {

@@ -1,6 +1,13 @@
 # SwiftShelf config
 .swiftshelf-config.json
 
+# Developer docs (local only)
+docs/
+
+# Local test credentials (do not commit!)
+.env
+*.env
+
 # Built application files
 *.apk
 *.aar
