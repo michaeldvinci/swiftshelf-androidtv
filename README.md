@@ -101,7 +101,7 @@ A native Android TV client for [Audiobookshelf](https://www.audiobookshelf.org/)
 ## Installation
 
 ### From Release
-1. Download the latest APK from the [Releases](https://github.com/michaeldvinci/swiftshelf-android/releases) page
+1. Download the latest APK from the [Releases](https://github.com/michaeldvinci/swiftshelf-androidtv/releases) page
 2. Install via ADB: `adb install swiftshelf-<version>.apk`
 3. Or sideload using your preferred method
 
